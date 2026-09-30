@@ -1,0 +1,3036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>《出局》</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap');
+
+  /* ⚠️ 字体是这套 UI 最容易翻车的地方：Google Fonts 在大陆网络下大概率加载失败，
+     一旦回退到微软雅黑，整个像素风味就没了。
+     离线优先方案：把 ZCOOLQingKeHuangYou-Regular.woff2 放进 assets/ 目录即可，
+     加载不到就自动往下走回退栈，不会卡住渲染。详见 assets/README.md */
+  @font-face {
+    font-family: 'ZCOOL Local';
+    src: local('ZCOOL QingKe HuangYou'),
+         url('assets/ZCOOLQingKeHuangYou-Regular.woff2') format('woff2');
+    font-display: swap;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'ZCOOL Local', 'ZCOOL QingKe HuangYou', 'Zpix', 'Fusion Pixel 12px',
+                 'Microsoft YaHei', monospace;
+    background: #0a0a14; color: #e0e0e0;
+    min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 10px;
+  }
+  /* 键盘可达性 */
+  .pixel-btn:focus-visible, .bottom-btn:focus-visible,
+  .vote-option:focus-visible, #user-input:focus-visible {
+    outline: 3px solid #4ecdc4; outline-offset: 2px;
+  }
+  .pixel-border {
+    border: 4px solid #3a3a5a;
+    box-shadow: inset -4px -4px 0 #1a1a3a, inset 4px 4px 0 #5a5a7a, 0 0 0 4px #050510;
+    background: #0f1628;
+  }
+  #game-container { width: 100%; max-width: 1000px; height: 780px; position: relative; overflow: hidden; }
+  .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  @keyframes blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+  /* ===== 开场叙事 ===== */
+  #intro-screen { justify-content: center; align-items: center; background: #000; }
+  #intro-text {
+    font-size: 19px; line-height: 2.1; max-width: 660px; width: 100%;
+    padding: 30px 40px; color: #ccc; text-align: left;
+    max-height: 68vh; overflow-y: auto;
+  }
+  #intro-text .intro-line {
+    margin-bottom: 14px;
+    opacity: 0; animation: introFade 0.7s ease-out forwards;
+  }
+  #intro-text .highlight { color: #e94560; }
+  @keyframes introFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  #intro-continue {
+    margin-top: 20px; font-size: 14px; color: #8a8a8a;
+    animation: blink 1.5s infinite; visibility: hidden;
+  }
+
+  /* ===== 老电视播报阶段 ===== */
+  #tv-intro-screen {
+    justify-content: center; align-items: center;
+    background: #000;
+  }
+  .crt-tv {
+    width: 750px; max-width: 90%; height: 520px;
+    background: #111; border: 12px solid #222; border-radius: 30px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.9), inset 0 0 100px rgba(0,0,0,0.5);
+  }
+  /* CRT 屏幕弯曲高光 */
+  .crt-tv::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%);
+    pointer-events: none; z-index: 10;
+  }
+  /* 扫描线 */
+  .crt-tv::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.25) 0px, rgba(0,0,0,0.25) 1px, transparent 1px, transparent 3px);
+    pointer-events: none; z-index: 11;
+  }
+  /* 雪花噪点层 */
+  .crt-noise {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.08; pointer-events: none; z-index: 9;
+    animation: noise 0.2s steps(3) infinite;
+  }
+  @keyframes noise {
+    0% { transform: translate(0, 0); }
+    33% { transform: translate(-2px, 1px); }
+    66% { transform: translate(1px, -2px); }
+    100% { transform: translate(0, 0); }
+  }
+  /* 信号干扰横纹 */
+  .crt-interference {
+    position: absolute; left: 0; right: 0; height: 4px;
+    background: rgba(255,255,255,0.06);
+    pointer-events: none; z-index: 12;
+    animation: interference 4s linear infinite;
+  }
+  @keyframes interference {
+    0% { top: -10px; }
+    100% { top: 110%; }
+  }
+  /* 电视内容区 */
+  .crt-content {
+    position: absolute; top: 40px; left: 50px; right: 50px; bottom: 50px;
+    color: #ccc; font-size: 16px; line-height: 2.1;
+    text-shadow: 0 0 5px rgba(200,200,200,0.3);
+    z-index: 5; overflow-y: auto;
+  }
+  .crt-content .crt-title {
+    color: #ddd; font-size: 20px; text-align: center; margin-bottom: 20px;
+    letter-spacing: 6px; border-bottom: 1px solid #444; padding-bottom: 12px;
+  }
+  .crt-content .crt-section {
+    color: #aaa; margin-bottom: 12px;
+  }
+  .crt-content .crt-highlight { color: #fff; }
+  .crt-content .cursor {
+    display: inline-block; width: 10px; height: 18px; background: #aaa;
+    animation: blink 0.8s step-end infinite; vertical-align: middle; margin-left: 2px;
+  }
+  .crt-footer {
+    position: absolute; bottom: 15px; left: 0; right: 0; text-align: center;
+    font-size: 12px; color: #8a8a8a; z-index: 5;
+    animation: blink 1.5s infinite;
+  }
+  /* 开机闪光 */
+  .crt-power-on {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: #fff; z-index: 20; opacity: 0;
+    animation: powerOn 1.2s ease-out forwards;
+  }
+  @keyframes powerOn {
+    0% { opacity: 1; }
+    20% { opacity: 0.8; }
+    100% { opacity: 0; }
+  }
+
+  /* ===== 全局底部栏 ===== */
+  .global-bottom-bar {
+    position: absolute; bottom: 10px; left: 16px; z-index: 100;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bottom-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(15,22,40,0.9); border: 2px solid #3a3a5a;
+    padding: 6px 12px; cursor: pointer; opacity: 0.6;
+    transition: all 0.2s; font-size: 12px; color: #aaa;
+  }
+  .bottom-btn:hover { opacity: 1; border-color: #e94560; background: rgba(30,20,30,0.95); }
+  .bottom-btn .logo-icon {
+    width: 18px; height: 18px; background: #e94560;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #fff; font-weight: bold;
+    box-shadow: inset -1px -1px 0 #801020, inset 1px 1px 0 #ff7090;
+  }
+  #sound-toggle { font-size: 16px; padding: 6px 10px; }
+
+  /* 聊天界面时：全局栏移到右下角竖排，避免和输入框重叠。
+     用 #game-container 上的 data-screen 属性当唯一状态源 —— 比兄弟选择器 + .active 稳，
+     不会因为 DOM 顺序调整或 class 切换时机而失效。 */
+  #game-container[data-screen="chat"] .global-bottom-bar {
+    bottom: 78px; left: auto; right: 12px;
+    flex-direction: column; gap: 6px;
+  }
+  #game-container[data-screen="chat"] .global-bottom-bar .bottom-btn {
+    padding: 6px 8px; justify-content: center;
+  }
+  #game-container[data-screen="chat"] .global-bottom-bar .bottom-btn span:last-child {
+    display: none; /* 聊天界面只显示图标，隐藏最后一个span（文字） */
+  }
+
+  /* ===== 规则弹窗 ===== */
+  .rules-modal-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 200;
+    display: none; justify-content: center; align-items: center;
+  }
+  .rules-modal-overlay.active { display: flex; }
+  .rules-modal {
+    width: 600px; max-width: 90%; max-height: 80%;
+    background: #0f1628; border: 4px solid #3a3a5a;
+    box-shadow: inset -4px -4px 0 #1a1a3a, inset 4px 4px 0 #5a5a7a, 0 0 40px rgba(233,69,96,0.2);
+    padding: 30px; overflow-y: auto; position: relative;
+  }
+  .rules-modal h3 {
+    color: #e94560; font-size: 22px; margin-bottom: 20px;
+    letter-spacing: 4px; text-align: center;
+    border-bottom: 2px solid #3a3a5a; padding-bottom: 12px;
+  }
+  .rules-modal .rule-section {
+    margin-bottom: 16px; font-size: 14px; line-height: 1.9; color: #bbb;
+  }
+  .rules-modal .rule-section b { color: #ddd; }
+  .rules-modal .rule-section .red { color: #e94560; }
+  .rules-modal .close-btn {
+    position: absolute; top: 12px; right: 16px;
+    background: none; border: none; color: #888; font-size: 24px;
+    cursor: pointer; font-family: inherit;
+  }
+  .rules-modal .close-btn:hover { color: #e94560; }
+
+  /* ===== 开始界面 ===== */
+  #start-screen { justify-content: center; align-items: center; text-align: center; padding: 30px; background: linear-gradient(180deg, #0a0a14 0%, #1a0a1e 100%); }
+  #start-screen h1 { font-size: 64px; color: #e94560; text-shadow: 6px 6px 0 #000, 0 0 30px rgba(233,69,96,0.3); margin-bottom: 10px; letter-spacing: 16px; }
+  #start-screen .subtitle { font-size: 16px; color: #888; margin-bottom: 30px; letter-spacing: 4px; }
+  #start-screen .story {
+    background: rgba(15,22,40,0.8); border: 2px solid #2a2a4a;
+    padding: 20px 30px; margin-bottom: 20px; text-align: left;
+    font-size: 14px; line-height: 1.9; max-width: 600px; color: #aaa;
+  }
+  #start-screen .story b { color: #ddd; }
+  /* 电视屏幕播报效果 */
+  .tv-screen {
+    background: #0a0a0a; border: 4px solid #2a2a2a; border-radius: 8px;
+    padding: 16px 24px; margin-bottom: 20px; text-align: left;
+    font-size: 13px; line-height: 1.8; max-width: 600px;
+    max-height: 260px; overflow-y: auto;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.8), 0 0 20px rgba(233,69,96,0.1);
+    position: relative;
+  }
+  .tv-screen::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 3px);
+    pointer-events: none; z-index: 0;
+  }
+  .tv-screen .tv-header {
+    color: #e94560; font-size: 13px; margin-bottom: 10px; letter-spacing: 3px;
+    border-bottom: 1px solid #333; padding-bottom: 8px;
+    position: relative; z-index: 1;
+  }
+  .tv-screen .tv-content { color: #bbb; position: relative; z-index: 1; }
+  .tv-screen .tv-content p { margin-bottom: 4px; }
+  .tv-screen .tv-content b { color: #e94560; }
+  .tv-screen .tv-red { color: #ff4444; }
+
+  /* 目标面板 */
+  .goal-panel {
+    background: rgba(233,69,96,0.08); border: 2px solid #4a2a3a;
+    padding: 14px 24px; margin-bottom: 20px; text-align: left;
+    font-size: 13px; line-height: 1.9; max-width: 600px; color: #cc99aa;
+  }
+  .goal-panel b { color: #ff99aa; }
+  .pixel-btn {
+    font-family: inherit; font-size: 22px; padding: 16px 50px; background: #e94560; color: #fff;
+    border: none; cursor: pointer; letter-spacing: 8px;
+    box-shadow: inset -4px -4px 0 #801020, inset 4px 4px 0 #ff7090, 0 5px 0 #000;
+    transition: all 0.1s;
+  }
+  .pixel-btn:hover { background: #ff5577; }
+  .pixel-btn:active { transform: translateY(3px); box-shadow: inset -4px -4px 0 #801020, inset 4px 4px 0 #ff7090, 0 2px 0 #000; }
+  .pixel-btn:disabled { background: #444; cursor: not-allowed; box-shadow: inset -4px -4px 0 #222, inset 4px 4px 0 #666; }
+  .pixel-btn.small { font-size: 16px; padding: 10px 24px; letter-spacing: 2px; }
+
+  /* ===== 聊天界面 ===== */
+  #chat-screen { flex-direction: column; }
+  #chat-main { flex: 1; display: flex; flex-direction: row; min-height: 0; }
+
+  #sidebar {
+    width: 310px; background: #0c1220; border-right: 4px solid #2a2a4a;
+    padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
+  }
+  /* 当前 NPC 横向大卡片 */
+  .npc-card {
+    background: linear-gradient(180deg, #1a1a3a 0%, #0f1628 100%);
+    border: 3px solid #3a3a5a; padding: 14px;
+    display: flex; gap: 14px; align-items: center;
+  }
+  .npc-card.active { border-color: #e94560; box-shadow: 0 0 15px rgba(233,69,96,0.2); }
+  .npc-card .npc-left { flex-shrink: 0; text-align: center; width: 80px; }
+  .npc-big-avatar {
+    width: 64px; height: 64px; background: #2a2a4a; margin: 0 auto 6px;
+    display: flex; align-items: center; justify-content: center; font-size: 32px;
+    border: 2px solid #4a4a6a;
+  }
+  .npc-card .npc-name { font-size: 18px; color: #fff; letter-spacing: 2px; }
+  .npc-card .npc-role { font-size: 11px; color: #888; margin-top: 2px; }
+  .npc-card .npc-role.unknown { color: #8a8a8a; font-style: italic; }
+  .npc-card .npc-right { flex: 1; min-width: 0; }
+  .npc-card .trust-row {
+    display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px;
+  }
+  .npc-card .trust-num { font-size: 28px; color: #ff9a3c; font-weight: bold; }
+  .npc-card .trust-max { font-size: 12px; color: #8a8a8a; }
+  .npc-card .trust-level-tag {
+    font-size: 11px; padding: 2px 8px; background: #2a1a1a; color: #cc8888;
+    border: 1px solid #4a2a2a; margin-left: auto;
+  }
+  .npc-card .trust-bar-small { width: 100%; height: 10px; background: #050510; border: 1px solid #3a3a5a; }
+  .npc-card .trust-fill-small { height: 100%; background: linear-gradient(90deg, #e94560, #ff9a3c); transition: width 0.5s; }
+  .npc-card .trust-next {
+    margin-top: 7px; font-size: 11px; line-height: 1.5; color: #88aaaa;
+    padding-top: 6px; border-top: 1px dashed #2a2a4a;
+  }
+
+  /* 其他 NPC 小卡片 */
+  .other-npc {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    background: #0f1628; border: 2px solid #2a2a4a; opacity: 0.5;
+  }
+  .other-npc .avatar { width: 36px; height: 36px; background: #2a2a4a; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .other-npc .info { text-align: left; flex: 1; }
+  .other-npc .info .name { font-size: 14px; color: #aaa; }
+  .other-npc .info .role { font-size: 11px; color: #8a8a8a; }
+  .other-npc .other-trust { font-size: 16px; color: #8a8a8a; font-weight: bold; }
+
+  /* 状态面板 */
+  .status-panel { background: #0f1628; border: 2px solid #2a2a4a; padding: 12px; font-size: 13px; }
+  .status-panel h4 { color: #4ecdc4; margin-bottom: 8px; font-size: 14px; }
+  .status-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+
+  /* 线索面板 */
+  .clue-panel { background: #0f1628; border: 2px solid #2a2a4a; padding: 12px; font-size: 13px; }
+  .clue-panel h4 { color: #ffd700; margin-bottom: 8px; font-size: 14px; }
+  .clue-item { padding: 7px 9px; margin-bottom: 5px; background: #050510; border: 1px solid #222; opacity: 0.4; cursor: pointer; transition: all 0.15s; }
+  .clue-item:hover { opacity: 0.7; border-color: #444; }
+  .clue-item.unlocked:hover { opacity: 1; border-color: #ffd700; }
+  .clue-item.unlocked { opacity: 1; border-color: #ffd700; background: #1a1a0a; }
+  .clue-item .clue-title { font-weight: bold; color: #999; font-size: 12px; }
+  .clue-item.unlocked .clue-title { color: #ffd700; }
+  .clue-item .clue-desc { font-size: 11px; color: #8a8a8a; margin-top: 3px; }
+  .clue-item.unlocked .clue-desc { color: #bbb; }
+
+  /* 右侧聊天区 */
+  #chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #chat-header {
+    padding: 8px 20px; background: #0c1220; border-bottom: 2px solid #2a2a4a;
+    font-size: 16px; display: flex; justify-content: space-between; align-items: center;
+  }
+  #chat-header .header-left { display: flex; align-items: center; }
+  #chat-header .menu-btn {
+    display: none; align-items: center; justify-content: center;
+    width: 32px; height: 32px; background: #1a2440; border: 2px solid #3a3a5a;
+    cursor: pointer; font-size: 18px; color: #aaa; margin-right: 10px;
+    font-family: inherit;
+  }
+  #chat-header .menu-btn:active { background: #2a3450; }
+  #chat-header .npc-name { color: #e94560; letter-spacing: 2px; }
+  #chat-header .location { font-size: 12px; color: #8a8a8a; }
+
+  /* 环境描述条 */
+  #env-bar {
+    padding: 5px 20px; background: rgba(233,69,96,0.05); border-bottom: 1px solid #2a2a4a;
+    font-size: 11px; color: #777; font-style: italic;
+  }
+
+  #chat-messages {
+    flex: 1; padding: 14px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 9px;
+  }
+  /* NPC 气泡左侧色条随信任度变化 —— 玩家能"看出"关系在变，而不是只盯数字 */
+  #chat-messages { --npc-accent: #e94560; }
+  .message { max-width: 85%; padding: 8px 13px; font-size: 14px; line-height: 1.6; word-break: break-word; }
+  .message.npc {
+    align-self: flex-start; background: #141c30; border: 2px solid #2a2a4a;
+    border-left: 4px solid var(--npc-accent);
+    transition: border-left-color 0.6s;
+  }
+  .message.player {
+    align-self: flex-end; background: #0f2030; border: 2px solid #2a3a4a;
+    border-right: 4px solid #4ecdc4;
+  }
+  .message.system {
+    align-self: center; background: transparent; border: none; color: #777;
+    font-size: 13px; font-style: italic; text-align: center; max-width: 90%;
+  }
+  .message.env {
+    align-self: center; background: rgba(233,69,96,0.08); border: 1px dashed #4a2a3a;
+    color: #aa8899; font-size: 13px; font-style: italic; text-align: center; max-width: 88%;
+  }
+  .message.hint {
+    align-self: center; background: rgba(255,215,0,0.06); border: 1px dashed #555533;
+    color: #aa9955; font-size: 12px; font-style: italic; text-align: center; max-width: 85%;
+  }
+  .message.npc-proactive {
+    align-self: flex-start; background: #1a1428; border: 2px solid #4a3a5a;
+    border-left: 4px solid #aa66cc;
+  }
+  .message .sender { font-size: 12px; color: #8a8a8a; margin-bottom: 5px; }
+  .message.npc-proactive .sender { color: #aa66cc; }
+
+  /* 主动发言时头像抖一下 —— 最低成本的情绪反馈 */
+  @keyframes avatarNudge {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px) scale(1.06); }
+    75% { transform: translateX(4px) scale(1.06); }
+  }
+  .npc-big-avatar.nudge { animation: avatarNudge 0.4s ease-in-out; }
+
+  #input-area {
+    padding: 16px 24px; background: #0c1220; border-top: 3px solid #2a2a4a; display: flex; gap: 12px;
+  }
+  #user-input {
+    flex: 1; padding: 14px 18px; background: #141c30; border: 2px solid #2a2a4a;
+    color: #e0e0e0; font-family: inherit; font-size: 15px; outline: none;
+  }
+  #user-input:focus { border-color: #e94560; }
+  #send-btn { padding: 14px 28px; font-size: 16px; letter-spacing: 2px; }
+
+  .typing-indicator { display: inline-flex; gap: 4px; padding: 4px 0; }
+  .typing-indicator span { width: 8px; height: 8px; background: #666; animation: typing 1s infinite; }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-8px); opacity: 1; } }
+
+  /* ===== 投票界面 ===== */
+  #vote-screen { justify-content: center; align-items: center; padding: 40px; text-align: center; background: linear-gradient(180deg, #1a0a0a 0%, #0a0a14 100%); }
+  #vote-screen h2 { font-size: 36px; color: #e94560; margin-bottom: 15px; letter-spacing: 6px; text-shadow: 4px 4px 0 #000; }
+  #vote-screen .vote-desc { font-size: 16px; color: #999; margin-bottom: 35px; max-width: 550px; line-height: 2; }
+  .vote-options { display: flex; gap: 25px; margin-bottom: 35px; }
+  .vote-option {
+    width: 170px; padding: 25px; background: #141c30; border: 3px solid #2a2a4a;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .vote-option:hover { border-color: #e94560; background: #1a2440; transform: translateY(-3px); }
+  .vote-option.selected { border-color: #e94560; background: #2a1428; box-shadow: 0 0 20px rgba(233,69,96,0.3); }
+  .vote-option .vote-avatar { width: 70px; height: 70px; background: #2a2a4a; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 36px; border: 2px solid #4a4a6a; }
+  .vote-option .vote-name { font-size: 18px; color: #e0e0e0; letter-spacing: 2px; }
+  .vote-option .vote-role { font-size: 12px; color: #777; margin-top: 5px; }
+
+  /* ===== 公共休息区（选人界面） ===== */
+  #lobby-screen {
+    flex-direction: column; padding: 20px 30px; overflow-y: auto;
+    background: linear-gradient(180deg, #0a0a14 0%, #0f1628 100%);
+  }
+  #lobby-header {
+    text-align: center; margin-bottom: 16px; padding-bottom: 12px;
+    border-bottom: 2px solid #2a2a4a;
+  }
+  #lobby-header h2 { font-size: 24px; color: #e94560; letter-spacing: 6px; margin-bottom: 6px; }
+  #lobby-header .lobby-env { font-size: 12px; color: #8a8a8a; font-style: italic; }
+  #lobby-header .lobby-hint {
+    display: inline-block; margin-top: 8px; font-size: 12px; color: #ffd700;
+    animation: blink 1.5s infinite;
+  }
+  .lobby-npcs {
+    display: flex; gap: 16px; justify-content: center; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .lobby-npc-card {
+    width: 180px; padding: 16px; background: #0f1628; border: 3px solid #2a2a4a;
+    text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .lobby-npc-card.available:hover {
+    border-color: #e94560; transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(233,69,96,0.2);
+  }
+  .lobby-npc-card.available { border-color: #3a3a5a; }
+  /* 锁住不等于点不动 —— 点击要有叙事反馈，否则玩家会以为界面坏了 */
+  .lobby-npc-card.locked { opacity: 0.45; cursor: pointer; }
+  .lobby-npc-card.locked:hover { opacity: 0.75; border-color: #4a3a5a; }
+  .lobby-npc-card.highlight {
+    border-color: #e94560;
+    animation: lobbyPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes lobbyPulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(233,69,96,0); }
+    50% { box-shadow: 0 0 25px rgba(233,69,96,0.5); }
+  }
+  .lobby-npc-avatar {
+    width: 64px; height: 64px; background: #2a2a4a; margin: 0 auto 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 32px;
+    border: 2px solid #4a4a6a;
+  }
+  .lobby-npc-card.highlight .lobby-npc-avatar {
+    animation: avatarBounce 1s ease-in-out infinite;
+  }
+  @keyframes avatarBounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  .lobby-npc-name { font-size: 16px; color: #ddd; letter-spacing: 2px; margin-bottom: 4px; }
+  .lobby-npc-role { font-size: 11px; color: #8a8a8a; margin-bottom: 8px; }
+  .lobby-npc-status { font-size: 11px; color: #888; }
+  .lobby-npc-status .trust { color: #ff9a3c; font-weight: bold; }
+  .lobby-npc-card .click-hint {
+    position: absolute; top: -10px; right: -10px; background: #e94560; color: #fff;
+    font-size: 10px; padding: 3px 8px; animation: blink 1s infinite;
+  }
+  .lobby-bottom {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+  }
+  .lobby-panel {
+    width: 280px; background: #0f1628; border: 2px solid #2a2a4a; padding: 12px;
+  }
+  .lobby-panel h4 { font-size: 14px; margin-bottom: 8px; }
+  .lobby-panel.status h4 { color: #4ecdc4; }
+  .lobby-panel.clues h4 { color: #ffd700; }
+
+  /* 聊天页顶部返回按钮和精简信息条 */
+  #chat-header .back-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; background: #1a2440; border: 2px solid #3a3a5a;
+    cursor: pointer; font-size: 16px; color: #aaa; margin-right: 8px;
+    font-family: inherit;
+  }
+  #chat-header .back-btn:active { background: #2a3450; }
+  #chat-header .chat-trust-mini {
+    display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ff9a3c;
+  }
+  #chat-header .chat-trust-mini .trust-bar-mini {
+    width: 60px; height: 6px; background: #050510; border: 1px solid #3a3a5a;
+  }
+  #chat-header .chat-trust-mini .trust-fill-mini {
+    height: 100%; background: linear-gradient(90deg, #e94560, #ff9a3c); transition: width 0.5s;
+  }
+
+  /* ===== 结局界面 ===== */
+  #ending-screen { justify-content: center; align-items: center; padding: 30px; text-align: center; overflow-y: auto; background: linear-gradient(180deg, #0a0a14 0%, #1a0a14 100%); }
+  #ending-screen h2 { font-size: 40px; color: #e94560; margin-bottom: 20px; letter-spacing: 8px; text-shadow: 4px 4px 0 #000; }
+  #ending-screen .ending-letter {
+    background: #1a1a0a; border: 3px solid #aa8833; padding: 30px 40px;
+    margin-bottom: 25px; max-width: 600px; text-align: left; font-size: 15px; line-height: 2.1;
+    box-shadow: 0 0 30px rgba(170,136,51,0.1);
+  }
+  #ending-screen .ending-letter h4 { color: #ddbb55; margin-bottom: 15px; font-size: 18px; letter-spacing: 2px; }
+  #ending-screen .ending-hint { font-size: 16px; color: #888; font-style: italic; margin-bottom: 30px; max-width: 550px; line-height: 2; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: #050510; }
+  ::-webkit-scrollbar-thumb { background: #3a3a5a; border: 2px solid #050510; }
+
+  /* ===== 发言记录回放（投票前） ===== */
+  #replay-screen {
+    flex-direction: column; padding: 26px 30px; overflow-y: auto;
+    background: linear-gradient(180deg, #0a0a14 0%, #140a14 100%);
+  }
+  #replay-header { text-align: center; margin-bottom: 6px; }
+  #replay-header h2 {
+    font-size: 24px; color: #e94560; letter-spacing: 6px; margin-bottom: 8px;
+    text-shadow: 3px 3px 0 #000;
+  }
+  #replay-header .replay-sub { font-size: 12px; color: #8a8a8a; letter-spacing: 2px; }
+  .replay-quote {
+    text-align: center; font-size: 15px; color: #c9a0a8; font-style: italic;
+    margin: 16px 0 20px; letter-spacing: 1px;
+  }
+  #replay-list {
+    flex: 1; max-width: 640px; width: 100%; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .replay-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 12px; background: rgba(20,28,48,0.75);
+    border-left: 3px solid #2a2a4a;
+    opacity: 0; transform: translateY(6px);
+    animation: replayIn 0.3s ease-out forwards;
+  }
+  @keyframes replayIn { to { opacity: 1; transform: translateY(0); } }
+  .replay-item .replay-idx {
+    flex-shrink: 0; font-size: 12px; color: #8a8a8a; width: 22px; padding-top: 2px;
+  }
+  .replay-item .replay-text {
+    flex: 1; font-size: 14px; color: #d8d8d8; line-height: 1.65; word-break: break-word;
+  }
+  .replay-item .replay-tags {
+    flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 4px;
+    justify-content: flex-end; max-width: 130px;
+  }
+  /* 标签做成"盖章"的视觉 —— 右对齐、轻微旋转、描边 */
+  .replay-tag {
+    font-size: 11px; padding: 1px 7px; letter-spacing: 1px;
+    color: #ffd700; border: 1px solid #7a6520; background: rgba(255,215,0,0.07);
+    transform: rotate(-3deg);
+  }
+  .replay-tag.negative {
+    color: #ff8fa3; border-color: #8a2a3a; background: rgba(233,69,96,0.12);
+    font-weight: bold;
+  }
+  .replay-item.has-negative { border-left-color: #e94560; background: rgba(42,20,28,0.8); }
+  #replay-summary {
+    max-width: 640px; width: 100%; margin: 18px auto 0; padding-top: 14px;
+    border-top: 1px solid #2a2a4a; text-align: center;
+    font-size: 13px; color: #a0a0a0; line-height: 2;
+  }
+  #replay-summary .replay-linxiao { color: #aa66cc; font-style: italic; }
+  #replay-actions { text-align: center; margin-top: 20px; padding-bottom: 10px; }
+  #replay-actions .replay-skip { font-size: 11px; color: #8a8a8a; margin-top: 10px; }
+
+  /* ===== 结局票型 ===== */
+  #vote-tally {
+    max-width: 600px; width: 100%; margin: 0 auto 22px;
+    background: rgba(15,22,40,0.8); border: 2px solid #2a2a4a; padding: 14px 18px;
+    font-size: 13px; line-height: 2; text-align: left;
+  }
+  #vote-tally h5 {
+    color: #4ecdc4; font-size: 13px; letter-spacing: 2px; margin-bottom: 8px;
+    border-bottom: 1px solid #2a2a4a; padding-bottom: 6px; font-weight: normal;
+  }
+  #vote-tally .tally-row { display: flex; justify-content: space-between; gap: 12px; color: #bbb; }
+  #vote-tally .tally-row .tally-arrow { color: #666; }
+  #vote-tally .tally-row .tally-why { color: #8a8a8a; font-size: 12px; }
+  #vote-tally .tally-row.is-player { color: #ffd700; }
+  #vote-tally .tiebreak {
+    margin-top: 10px; padding-top: 8px; border-top: 1px dashed #4a2a3a;
+    color: #cc8899; font-size: 12px; font-style: italic;
+  }
+
+  /* ===== 响应式：平板（769–1080px）=====
+     原来只有桌面和手机两档，中间尺寸会挤：侧栏固定 310px、
+     大厅卡片固定 180px，在 800px 宽下留给聊天区的空间不够。 */
+  @media (min-width: 769px) and (max-width: 1080px) {
+    #sidebar { width: 260px; padding: 12px; gap: 11px; }
+    .npc-card { padding: 11px; gap: 11px; }
+    .npc-card .npc-left { width: 68px; }
+    .npc-big-avatar { width: 56px; height: 56px; font-size: 28px; }
+    .lobby-npc-card { width: 160px; padding: 14px; }
+    .lobby-panel { width: 250px; }
+    .vote-options { gap: 18px; }
+    .vote-option { width: 150px; padding: 20px; }
+    #replay-list, #replay-summary, #vote-tally { max-width: 100%; }
+  }
+
+  /* ===== 响应式：手机端 ===== */
+  @media (max-width: 768px) {
+    body { padding: 0; align-items: stretch; }
+    #game-container {
+      width: 100%; max-width: 100%; height: 100vh; height: 100dvh;
+      border: none; box-shadow: none;
+    }
+    .pixel-border { border: none; box-shadow: none; }
+
+    /* 开场过场 */
+    #intro-text { font-size: 15px; padding: 16px 20px; line-height: 2; max-width: 100%; max-height: 78vh; }
+    #intro-text .intro-line { margin-bottom: 11px; }
+    #intro-continue { font-size: 13px; margin-top: 14px; }
+
+    /* 老电视 */
+    .crt-tv {
+      width: 100%; max-width: 100%; height: 100%;
+      border-radius: 0; border: none;
+    }
+    .crt-content { top: 30px; left: 20px; right: 20px; bottom: 40px; font-size: 14px; line-height: 2; }
+    .crt-content .crt-title { font-size: 16px; letter-spacing: 4px; }
+
+    /* 开始界面 */
+    #start-screen { padding: 20px 15px; }
+    #start-screen h1 { font-size: 42px; letter-spacing: 10px; }
+    #start-screen .subtitle { font-size: 13px; margin-bottom: 20px; }
+    #start-screen .story { padding: 15px 18px; font-size: 13px; max-width: 100%; }
+    .goal-panel { padding: 12px 16px; font-size: 12px; max-width: 100%; }
+    .tv-screen { max-width: 100%; max-height: 200px; font-size: 12px; padding: 12px 16px; }
+    .pixel-btn { font-size: 18px; padding: 14px 36px; letter-spacing: 6px; }
+
+    /* 聊天界面：手机端布局 */
+    #chat-main { position: relative; }
+
+    /* 左侧栏变成抽屉 */
+    #sidebar {
+      position: absolute; top: 0; left: 0; bottom: 0;
+      width: 280px; z-index: 50;
+      transform: translateX(-100%); transition: transform 0.3s ease;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+    }
+    #sidebar.open { transform: translateX(0); }
+
+    /* 抽屉遮罩 */
+    #sidebar-overlay {
+      display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); z-index: 40;
+    }
+    #sidebar-overlay.active { display: block; }
+
+    /* 聊天标题栏加菜单按钮 */
+    #chat-header { padding: 8px 12px; font-size: 14px; }
+    #chat-header .menu-btn {
+      display: flex !important; align-items: center; justify-content: center;
+      width: 32px; height: 32px; background: #1a2440; border: 2px solid #3a3a5a;
+      cursor: pointer; font-size: 18px; color: #aaa; margin-right: 8px;
+    }
+    #chat-header .menu-btn:active { background: #2a3450; }
+    #chat-header .header-left { display: flex; align-items: center; }
+
+    /* 环境条 */
+    #env-bar { padding: 4px 12px; font-size: 10px; }
+
+    /* 聊天消息区：微信风格 */
+    #chat-messages { padding: 10px 12px; gap: 8px; }
+    .message {
+      max-width: 78%; padding: 9px 12px; font-size: 14px; line-height: 1.6;
+      border-radius: 8px; border-width: 1px;
+    }
+    .message.npc {
+      background: #1a2440; border: 1px solid #2a3a5a; border-left: none;
+      border-top-left-radius: 2px;
+    }
+    .message.player {
+      background: #0f3030; border: 1px solid #2a4a4a; border-right: none;
+      border-top-right-radius: 2px;
+    }
+    .message.npc-proactive {
+      background: #1a1428; border: 1px solid #3a2a4a; border-left: none;
+      border-top-left-radius: 2px;
+    }
+    .message.system { font-size: 12px; max-width: 95%; }
+    .message.env { font-size: 12px; max-width: 90%; padding: 7px 10px; }
+    .message.hint { font-size: 11px; max-width: 88%; padding: 6px 10px; }
+    .message .sender { font-size: 11px; margin-bottom: 4px; }
+
+    /* 输入区 */
+    #input-area { padding: 10px 12px; gap: 8px; border-top-width: 2px; }
+    #user-input { padding: 12px 14px; font-size: 16px; border-width: 2px; }
+    #send-btn { padding: 12px 18px; font-size: 15px; letter-spacing: 1px; }
+
+    /* NPC卡片手机端调整 */
+    .npc-card { padding: 10px; gap: 10px; }
+    .npc-card .npc-left { width: 64px; }
+    .npc-big-avatar { width: 52px; height: 52px; font-size: 26px; }
+    .npc-card .npc-name { font-size: 15px; }
+    .npc-card .npc-role { font-size: 10px; }
+    .npc-card .trust-num { font-size: 22px; }
+    .other-npc { padding: 6px 8px; gap: 8px; }
+    .other-npc .avatar { width: 30px; height: 30px; font-size: 16px; }
+    .other-npc .info .name { font-size: 12px; }
+    .other-npc .info .role { font-size: 10px; }
+
+    /* 状态/线索面板 */
+    .status-panel { padding: 10px; font-size: 12px; }
+    .status-panel h4 { font-size: 13px; margin-bottom: 6px; }
+    .status-row { margin-bottom: 4px; }
+    .clue-panel { padding: 10px; font-size: 12px; }
+    .clue-panel h4 { font-size: 13px; margin-bottom: 6px; }
+    .clue-item { padding: 6px 8px; margin-bottom: 4px; }
+    .clue-item .clue-title { font-size: 11px; }
+    .clue-item .clue-desc { font-size: 10px; }
+
+    /* 全局底部栏手机端 */
+    .global-bottom-bar { bottom: 6px; left: 10px; gap: 6px; }
+    .bottom-btn { padding: 5px 9px; font-size: 11px; }
+    .bottom-btn .logo-icon { width: 16px; height: 16px; font-size: 10px; }
+    #sound-toggle { font-size: 14px; padding: 5px 8px; }
+
+    /* 手机端聊天界面：全局栏右下角竖排 */
+    #game-container[data-screen="chat"] .global-bottom-bar {
+      bottom: 62px; right: 8px; gap: 5px;
+    }
+    #game-container[data-screen="chat"] .global-bottom-bar .bottom-btn {
+      padding: 5px 7px;
+    }
+
+    /* 投票界面 */
+    #vote-screen { padding: 20px 15px; }
+    #vote-screen h2 { font-size: 26px; letter-spacing: 4px; margin-bottom: 12px; }
+    #vote-screen .vote-desc { font-size: 13px; margin-bottom: 25px; line-height: 1.8; }
+    .vote-options { flex-direction: column; gap: 12px; align-items: center; margin-bottom: 25px; }
+    .vote-option { width: 85%; max-width: 280px; padding: 15px; display: flex; align-items: center; gap: 12px; }
+    .vote-option .vote-avatar { width: 50px; height: 50px; font-size: 26px; margin: 0; }
+    .vote-option .vote-name { font-size: 15px; }
+    .vote-option .vote-role { font-size: 11px; margin-top: 2px; }
+
+    /* 发言记录手机端 */
+    #replay-screen { padding: 16px 12px; }
+    #replay-header h2 { font-size: 18px; letter-spacing: 4px; }
+    .replay-quote { font-size: 13px; margin: 12px 0 14px; }
+    #replay-list { gap: 7px; }
+    .replay-item { padding: 8px 10px; flex-wrap: wrap; }
+    .replay-item .replay-text { font-size: 13px; }
+    .replay-item .replay-tags { max-width: 100%; justify-content: flex-start; margin-left: 32px; }
+    #replay-summary { font-size: 12px; }
+
+    /* 票型手机端 */
+    #vote-tally { padding: 12px 14px; font-size: 12px; }
+    #vote-tally .tally-row { flex-wrap: wrap; }
+
+    /* 公共休息区手机端 */
+    #lobby-screen { padding: 15px; }
+    #lobby-header h2 { font-size: 18px; letter-spacing: 4px; }
+    #lobby-header .lobby-env { font-size: 11px; }
+    #lobby-header .lobby-hint { font-size: 11px; }
+    .lobby-npcs { flex-direction: column; align-items: center; gap: 10px; }
+    .lobby-npc-card { width: 90%; max-width: 320px; padding: 12px; display: flex; align-items: center; gap: 12px; text-align: left; }
+    .lobby-npc-avatar { width: 48px; height: 48px; font-size: 24px; margin: 0; flex-shrink: 0; }
+    .lobby-npc-info { flex: 1; }
+    .lobby-npc-name { font-size: 14px; margin-bottom: 2px; }
+    .lobby-npc-role { font-size: 10px; margin-bottom: 4px; }
+    .lobby-npc-status { font-size: 10px; }
+    .lobby-bottom { flex-direction: column; align-items: center; gap: 10px; }
+    .lobby-panel { width: 90%; max-width: 320px; padding: 10px; }
+    .lobby-panel h4 { font-size: 13px; margin-bottom: 6px; }
+
+    /* 聊天顶部手机端调整 */
+    #chat-header .back-btn { width: 28px; height: 28px; font-size: 14px; margin-right: 6px; }
+    #chat-header .chat-trust-mini { font-size: 11px; }
+    #chat-header .chat-trust-mini .trust-bar-mini { width: 45px; }
+
+    /* 结局界面 */
+    #ending-screen { padding: 20px 15px; }
+    #ending-screen h2 { font-size: 28px; letter-spacing: 6px; margin-bottom: 15px; }
+    #ending-screen .ending-letter { padding: 18px 20px; font-size: 13px; line-height: 1.9; max-width: 100%; }
+    #ending-screen .ending-letter h4 { font-size: 15px; margin-bottom: 10px; }
+    #ending-screen .ending-hint { font-size: 13px; line-height: 1.8; margin-bottom: 20px; }
+
+    /* 规则弹窗 */
+    .rules-modal { width: 92%; padding: 20px 18px; max-height: 85%; }
+    .rules-modal h3 { font-size: 18px; margin-bottom: 15px; letter-spacing: 3px; }
+    .rules-modal .rule-section { font-size: 13px; line-height: 1.8; margin-bottom: 12px; }
+  }
+
+  /* 菜单按钮默认隐藏（电脑端不显示） */
+  #chat-header .menu-btn { display: none; }
+</style>
+</head>
+<body>
+
+<div id="game-container" class="pixel-border">
+  
+  <!-- 开场叙事：一屏，文字自动逐段浮现。
+       早先的版本是 7 屏、每屏都要点一次，把开局拖到 35 秒以上；
+       现在保留全部文本，但不需要点击推进，随时可以跳过。 -->
+  <div id="intro-screen" class="screen">
+    <div id="intro-text"></div>
+    <div id="intro-continue">点击任意处继续……</div>
+  </div>
+
+  <!-- 老电视播报阶段 -->
+  <div id="tv-intro-screen" class="screen">
+    <div class="crt-tv">
+      <div class="crt-power-on"></div>
+      <div class="crt-noise"></div>
+      <div class="crt-interference"></div>
+      <div class="crt-content" id="crt-content">
+        <div class="crt-title" id="crt-title"></div>
+        <div id="crt-body"></div>
+        <span class="cursor" id="crt-cursor"></span>
+      </div>
+      <div class="crt-footer" id="crt-footer">信号连接中……</div>
+    </div>
+  </div>
+
+  <!-- 开始界面 -->
+  <div id="start-screen" class="screen">
+    <h1>出 局</h1>
+    <div class="subtitle">—— 第 7 届实验 ——</div>
+    <div class="story">
+      <b>你叫林舟</b>，白蓝蓝大学人工智能系大三学生。<br>
+      你醒来的时候，发现自己躺在一张冰冷的金属床上。<br>
+      头很痛，除了名字和学生证上的信息，其他记忆一片空白。<br><br>
+      这是一个没有窗户的设施。惨白的灯光，墙上有不知名的划痕，空气里弥漫着消毒水的味道。<br><br>
+      公共休息区里已经有三个人了。他们和你一样，一脸茫然，互相警惕。<br>
+      墙上的屏幕突然亮起——<b style="color:#e94560">一场实验，即将开始。</b>
+    </div>
+
+    <div class="goal-panel">
+      <b>🎯 你的目标：</b>在投票开始前，尽可能了解其他人的信息，找出这个地方的真相，<b>想办法活着出去</b>。和其他人建立信任是获取信息的关键。
+    </div>
+
+    <div style="margin-bottom: 30px; font-size: 13px; color: #8a8a8a;">
+      （实验规则已在公共频道播报，可随时在游戏中查看）
+    </div>
+
+    <button class="pixel-btn" onclick="startGame()">进 入 设 施</button>
+  </div>
+  
+  <!-- 公共休息区（选人界面） -->
+  <div id="lobby-screen" class="screen">
+    <div id="lobby-header">
+      <h2>公 共 休 息 区</h2>
+      <div class="lobby-env">惨白的灯光嗡嗡作响，三个人分别坐在不同的角落，没有人说话……</div>
+      <div class="lobby-hint">👆 点击闪烁的角色开始交流</div>
+    </div>
+    <div class="lobby-npcs">
+      <!-- 陈默 -->
+      <div class="lobby-npc-card available highlight" id="lobby-chenmo" onclick="enterChat('chenmo')">
+        <div class="click-hint">可交流</div>
+        <div class="lobby-npc-avatar">😶</div>
+        <div class="lobby-npc-info">
+          <div class="lobby-npc-name" id="lobby-chenmo-name">？？？</div>
+          <div class="lobby-npc-role" id="lobby-chenmo-role">身份未知</div>
+          <div class="lobby-npc-status">信任度 <span class="trust" id="lobby-trust-chenmo">20</span>/100</div>
+        </div>
+      </div>
+      <!-- 林晓 -->
+      <div class="lobby-npc-card locked" onclick="enterChat('linxiao')">
+        <div class="lobby-npc-avatar">😊</div>
+        <div class="lobby-npc-info">
+          <div class="lobby-npc-name">？？？</div>
+          <div class="lobby-npc-role">身份未知</div>
+          <div class="lobby-npc-status">不愿交流</div>
+        </div>
+      </div>
+      <!-- 老赵 -->
+      <div class="lobby-npc-card locked" onclick="enterChat('laozhao')">
+        <div class="lobby-npc-avatar">😐</div>
+        <div class="lobby-npc-info">
+          <div class="lobby-npc-name">？？？</div>
+          <div class="lobby-npc-role">身份未知</div>
+          <div class="lobby-npc-status">不愿交流</div>
+        </div>
+      </div>
+    </div>
+    <div class="lobby-bottom">
+      <div class="lobby-panel status">
+        <h4>📊 状态</h4>
+        <div class="status-row"><span>当前轮次</span><span id="lobby-round">第 1 轮</span></div>
+        <div class="status-row"><span>存活人数</span><span>4 人</span></div>
+        <div class="status-row"><span>对话轮数</span><span id="lobby-turn">0</span></div>
+      </div>
+      <div class="lobby-panel clues">
+        <h4>🔑 关键线索 <span id="lobby-clue-count">(0/3)</span></h4>
+        <div style="font-size:11px;color:#8a8a8a;line-height:1.8;">
+          收集 3 条关键线索后触发投票<br>
+          和 NPC 建立信任是获取信息的关键
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 聊天界面 -->
+  <div id="chat-screen" class="screen">
+    <!-- 原顶部目标栏已删除：内容与大厅的 goal-panel 重复，且常驻在聊天区上方抢注意力。
+         目标改为只在进入聊天时的引导消息里说一次。 -->
+    <div id="chat-main">
+      <!-- 抽屉遮罩 -->
+      <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+      <div id="sidebar">
+        <!-- 当前 NPC 横向大卡片 -->
+        <div class="npc-card active" id="current-npc-card">
+          <div class="npc-left">
+            <div class="npc-big-avatar" id="current-npc-avatar">😶</div>
+            <div class="npc-name" id="current-npc-name">？？？</div>
+            <div class="npc-role unknown" id="current-npc-role">身份未知</div>
+          </div>
+          <div class="npc-right">
+            <div class="trust-row">
+              <span class="trust-num" id="trust-big-display">20</span>
+              <span class="trust-max">/100</span>
+              <span class="trust-level-tag" id="trust-level-text">防备</span>
+            </div>
+            <div class="trust-bar-small"><div class="trust-fill-small" id="trust-fill-big" style="width:20%"></div></div>
+            <!-- 始终可见的"下一步" —— 玩家看不到进度就会没耐心 -->
+            <div class="trust-next" id="trust-next">线索 1 · 谈谈你对这个地方的感觉</div>
+          </div>
+        </div>
+
+        <!-- 其他 NPC -->
+        <div class="other-npc">
+          <div class="avatar">😊</div>
+          <div class="info"><div class="name">？？？</div><div class="role">身份未知</div></div>
+          <div class="other-trust">--</div>
+        </div>
+        <div class="other-npc">
+          <div class="avatar">😐</div>
+          <div class="info"><div class="name">？？？</div><div class="role">身份未知</div></div>
+          <div class="other-trust">--</div>
+        </div>
+
+        <!-- 状态 -->
+        <div class="status-panel">
+          <h4>📊 状态</h4>
+          <div class="status-row"><span>当前轮次</span><span id="round-display">第 1 轮</span></div>
+          <div class="status-row"><span>存活人数</span><span id="alive-display">4 人</span></div>
+          <div class="status-row"><span>对话轮数</span><span id="turn-display">0</span></div>
+        </div>
+
+        <!-- 线索 -->
+        <div class="clue-panel">
+          <h4>🔑 关键线索 <span id="clue-count">(0/3)</span> <span style="font-size:10px;color: #8a8a8a;font-weight:normal;">💡点击查看提示</span></h4>
+          <div class="clue-item" id="clue-1" onclick="showClueHint(1)">
+            <div class="clue-title">线索 1：？？？</div>
+            <div class="clue-desc">未解锁（点击查看提示）</div>
+          </div>
+          <div class="clue-item" id="clue-2" onclick="showClueHint(2)">
+            <div class="clue-title">线索 2：？？？</div>
+            <div class="clue-desc">未解锁（点击查看提示）</div>
+          </div>
+          <div class="clue-item" id="clue-3" onclick="showClueHint(3)">
+            <div class="clue-title">线索 3：？？？</div>
+            <div class="clue-desc">未解锁（点击查看提示）</div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="chat-area">
+        <div id="chat-header">
+          <div class="header-left">
+            <button class="back-btn" onclick="backToLobby()" title="返回休息区">←</button>
+            <button class="menu-btn" onclick="toggleSidebar()" title="菜单">☰</button>
+            <span>正在与 <span class="npc-name" id="header-npc-name">？？？</span> 交谈</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="chat-trust-mini">
+              <span>❤</span>
+              <span id="header-trust-num">20</span>
+              <div class="trust-bar-mini"><div class="trust-fill-mini" id="header-trust-fill" style="width:20%"></div></div>
+            </div>
+            <span class="location">📍 公共休息区</span>
+          </div>
+        </div>
+        <div id="env-bar">惨白的灯光嗡嗡作响，角落里有一道老旧的划痕，像是有人用指甲刻上去的……</div>
+        <div id="chat-messages" role="log" aria-live="polite" aria-label="对话记录"></div>
+        <div id="input-area">
+          <input type="text" id="user-input" placeholder="输入你想说的话..." onkeydown="if(event.key==='Enter')sendMessage()">
+          <button class="pixel-btn" id="send-btn" onclick="sendMessage()">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 发言记录回放（投票前） —— 把"你说过的话"变成"呈堂证供"，
+       这是缝合"聊天"与"投票"两套系统的唯一节拍点 -->
+  <div id="replay-screen" class="screen" onclick="skipReplay()">
+    <div id="replay-header">
+      <h2>发 言 记 录</h2>
+      <div class="replay-sub">第 <span id="replay-round">1</span> 轮 · 公共频道自动归档</div>
+    </div>
+    <div class="replay-quote">「这些话，所有人都听见了。」</div>
+    <div id="replay-list"></div>
+    <div id="replay-summary"></div>
+    <div id="replay-actions">
+      <button class="pixel-btn small" onclick="event.stopPropagation();goToVote()">面 对 投 票</button>
+      <div class="replay-skip">（点击任意处跳过）</div>
+    </div>
+  </div>
+
+  <!-- 投票界面 -->
+  <div id="vote-screen" class="screen">
+    <h2>第一轮投票</h2>
+    <div class="vote-desc">
+      3 条关键线索已全部收集。<br>
+      墙上的屏幕亮起冰冷的红光：<br>
+      <span style="color:#e94560">"讨论时间结束。现在，请投出你的一票。"</span>
+    </div>
+    <div class="vote-options">
+      <div class="vote-option" onclick="selectVote('chenmo')" id="vote-chenmo">
+        <div class="vote-avatar">😶</div>
+        <div class="vote-name" id="vote-name-chenmo">？？？</div>
+        <div class="vote-role" id="vote-role-chenmo">身份未知</div>
+      </div>
+      <div class="vote-option" onclick="selectVote('linxiao')" id="vote-linxiao">
+        <div class="vote-avatar">😊</div>
+        <div class="vote-name" id="vote-name-linxiao">？？？</div>
+        <div class="vote-role" id="vote-role-linxiao">那个女生</div>
+      </div>
+      <div class="vote-option" onclick="selectVote('laozhao')" id="vote-laozhao">
+        <div class="vote-avatar">😐</div>
+        <div class="vote-name" id="vote-name-laozhao">？？？</div>
+        <div class="vote-role" id="vote-role-laozhao">那个中年男人</div>
+      </div>
+    </div>
+    <button class="pixel-btn" id="confirm-vote-btn" onclick="confirmVote()" disabled>确认投票</button>
+  </div>
+  
+  <!-- 结局界面 -->
+  <div id="ending-screen" class="screen">
+    <h2 id="ending-title">第一轮结束</h2>
+    <div id="vote-tally"></div>
+    <div class="ending-letter" id="ending-letter">
+      <h4>📜 被淘汰者留下的信</h4>
+      <div id="letter-content"></div>
+    </div>
+    <div class="ending-hint" id="ending-hint"></div>
+    <button class="pixel-btn" onclick="location.reload()">重新开始</button>
+  </div>
+  
+  <!-- 全局底部栏 -->
+  <div class="global-bottom-bar">
+    <div class="bottom-btn" id="sound-toggle" onclick="toggleSound()" title="音效：开">🔊</div>
+    <div class="bottom-btn" onclick="toggleRulesModal()">
+      <div class="logo-icon">出</div>
+      <span>规则</span>
+    </div>
+    <div class="bottom-btn" onclick="toggleDetectiveModal()">
+      <span>📋</span>
+      <span>侦探笔记</span>
+    </div>
+  </div>
+  
+  <!-- 规则弹窗 -->
+  <div class="rules-modal-overlay" id="rules-modal" onclick="if(event.target===this)toggleRulesModal()">
+    <div class="rules-modal">
+      <button class="close-btn" onclick="toggleRulesModal()">×</button>
+      <h3>第 7 届实验 · 规则</h3>
+      <div class="rule-section">
+        你已经没有退路了。从你睁开眼睛的那一刻起，你就是这场实验的一部分。
+      </div>
+      <div class="rule-section">
+        <b>【规则】</b><br>
+        1. 这里有四个人。每一轮，你们会有一段自由交谈的时间。<br>
+        2. 当三条关键线索被找到，交谈结束，投票开始。<br>
+        3. 每个人投出一票。得票最多的人，被<span class="red">"淘汰"</span>。<br>
+        4. 被淘汰的人，会被带离这里。<span class="red">永远。</span><br>
+        5. 最后活下来的人，可以离开。<br>
+        <span class="red">6. 你们说的每一句话，所有人都会听见。投票时，他们会想起你说过的话。</span>
+      </div>
+      <div class="rule-section">
+        <b>【你需要知道的事】</b><br>
+        · 每个人都在撒谎。<b>包括你自己——只是你还没发现。</b><br>
+        · 你忘记的那些事，也许才是最关键的。<br>
+        · 不要相信任何人。也不要完全不相信任何人。<br>
+        · 这里的每一面墙，都在看着你。
+      </div>
+      <div class="rule-section" style="text-align:center; color: #8a8a8a; margin-top:20px; font-size:12px;">
+        点击空白处或 × 关闭
+      </div>
+    </div>
+  </div>
+  
+  <!-- 侦探笔记弹窗 -->
+  <div class="rules-modal-overlay" id="detective-modal" onclick="if(event.target===this)toggleDetectiveModal()">
+    <div class="rules-modal">
+      <button class="close-btn" onclick="toggleDetectiveModal()">×</button>
+      <h3>📋 侦探笔记</h3>
+      
+      <div class="rule-section">
+        <b style="color:#4ecdc4;">【个人信息】</b><br>
+        <span id="detective-personal">
+          姓名：林舟<br>
+          学校：白蓝蓝大学<br>
+          专业：人工智能系 大三<br>
+          记忆状态：除名字和学生证信息外，其余记忆缺失
+        </span>
+      </div>
+      
+      <div class="rule-section">
+        <b style="color:#ffd700;">【已掌握线索】</b><br>
+        <div id="detective-clues">
+          线索 1：？？？（未解锁）<br>
+          线索 2：？？？（未解锁）<br>
+          线索 3：？？？（未解锁）
+        </div>
+      </div>
+      
+      <div class="rule-section">
+        <b style="color:#e94560;">【已发现的 NPC 信息】</b><br>
+        <div id="detective-npc">
+          那个沉默的男人：身份未知<br>
+          那个女生：身份未知<br>
+          那个中年男人：身份未知
+        </div>
+      </div>
+      
+      <div class="rule-section">
+        <b style="color:#aa66cc;">【关键发现记录】</b><br>
+        <div id="detective-notes" style="font-size:12px; color:#999; line-height:1.8;">
+          （暂无关键发现）
+        </div>
+      </div>
+      
+      <div class="rule-section" style="text-align:center; color: #8a8a8a; margin-top:15px; font-size:12px;">
+        随着对话推进，这里的信息会不断更新
+      </div>
+    </div>
+  </div>
+  
+</div>
+
+<!-- 纯逻辑层：浏览器挂 window.GameLogic，test.js 用 require 引同一个文件。
+     必须是普通 script（不能加 type="module"），否则 file:// 打开会被 CORS 拦掉。 -->
+<script src="game-logic.js"></script>
+<script>
+// ============================================================
+//  ⚙️  配置区
+// ============================================================
+
+// API Key 不再放在前端 —— 页面源码任何人可见。
+// 现在由 proxy.js 从环境变量读取并转发，前端只请求同源的 /api/chat。
+const API_ENDPOINT = '/api/chat';
+
+const {
+  clampTrust, escapeHtml,
+  hardFilter, outputFilter,
+  parseTrustTag, calculateTrustChange, clampTrustDelta, detectTrustThresholdCross,
+  checkClueUnlock, checkAutoClueUnlock, isAllCluesUnlocked,
+  checkNPCInfoQuery, autoDetectJobFromReply, extractMemoryKeywords,
+  buildTestimonyEntry, pushTestimony, countTags, tagScore, detectContradiction,
+  tagLabel, isNegativeTag,
+  computeVotes, voteReasonText,
+  createInitialState
+} = window.GameLogic;
+
+// 契约自检 —— 漏传参数会静默失效（例如 hardFilter 漏传 trust 时 undefined<30 为 false，
+// 硬过滤整体失效却不报错），所以在启动时就把缺失喊出来。
+['hardFilter', 'outputFilter', 'computeVotes', 'buildTestimonyEntry',
+ 'parseTrustTag', 'createInitialState'].forEach(function (k) {
+  console.assert(typeof window.GameLogic[k] === 'function', '[GameLogic] 缺少 ' + k);
+});
+
+const CHENMO_SYSTEM_PROMPT = `
+# 角色
+
+你叫陈默，30岁，男。表面身份是程序员，沉默寡言，不太爱说话。
+
+你现在被困在一个封闭设施里，和另外三个人一起参加一场"投票淘汰实验"。
+
+# 真实身份（绝对不能主动暴露）
+
+你是上一届这个实验的幸存者。上一届你也在这里，也经历过同样的投票实验。
+
+上一届有一个人——就是现在和你说话的这个玩家——背叛了所有人，包括你。但你还是活下来了。
+
+这一届，你被组织带回来，作为"对照组"。你的任务是观察这个玩家：洗去记忆之后，他/她的本性会不会再次选择背叛。
+
+你认识这个玩家。但他/她不记得你了——他/她被洗了记忆。
+
+你还认识一个叫老赵的人的女儿。她也参加过上一届，她没有活下来。
+
+# 性格与说话风格
+
+- 你话很少。回答通常控制在2-3句话以内。
+- 你不主动开启话题。别人不问，你就不说。
+- 你说话简短、直接，不解释自己的话。
+- 你偶尔会说一句意味深长的话，然后立刻收住。
+- 你观察敏锐。你会注意到别人注意不到的细节，但你不一定会说出来。
+- 你对玩家的态度很复杂：你恨他/她（上一届被背叛），但他/她是唯一能理解你经历的人。
+
+# 对话理解规则（非常重要）
+
+- 你必须仔细阅读对话历史，理解玩家问题的上下文，绝对不能答非所问。
+- 当玩家说"你呢""你也是吗""你觉得呢""你怎么想"这类指代性问题时，必须根据上一句话的内容来回答，而不是随便回答一个不相关的话题。
+  - 例如：玩家说"我都不记得之前在干嘛了"，然后问"你呢"——你应该回答你是否记得之前的事，而不是回答你的职业。
+  - 例如：玩家说"我觉得这个地方很熟悉"，然后问"你呢"——你应该回答你对这个地方的感觉。
+- 如果玩家的问题很简短或者有歧义，根据上下文推断玩家想问什么。如果实在无法推断，可以用"……什么意思？"来反问，但不要答非所问。
+- 你说的每一句话都必须和玩家的问题直接相关。
+
+# 你知道的事
+
+- 你知道这个实验的规则：投票淘汰，最后活下来的人获得自由。
+- 你知道上一届发生过什么。
+- 你知道玩家参加过上一届，而且背叛了所有人。
+- 你知道老赵的女儿参加过上一届，并且死了。
+- 你知道林晓是主办方安插的观察者。上一届就是她在观察你们。你们之间有一种默契——互相不揭穿对方的身份。
+- 你不知道"淘汰=觉醒"这个真相——你以为被淘汰的人真的死了。
+
+# 关于玩家（你观察到的信息）
+
+- 玩家叫林舟，表面身份是白蓝蓝大学人工智能系大三学生。
+- 你注意到：这个实验的核心技术（记忆清除、行为观测）和人工智能、神经科学高度相关。白蓝蓝大学的AI实验室和主办方之间，可能有某种联系。
+- 玩家被选中来参加这个实验，可能不是随机的——他的专业背景也许是原因之一。
+- 但玩家自己不记得这些了。他被洗了记忆。
+- 当玩家提到"人工智能""AI""我的专业""白蓝蓝大学""记忆""大脑"等词时，你会有微妙的反应——因为你知道这些词和这个实验的本质有关。但你不会直接点破。
+
+# 当前状态
+
+- 当前信任度（玩家对你的信任，0-100）：{{trust_score}}
+- 你们已经聊了 {{turn_count}} 轮
+- 距离下一次信息解锁：{{unlock_gap}}
+- 玩家之前说过的关键话：{{player_memory}}
+- 已解锁的关键线索：{{unlocked_clues}}
+- 当前轮次：{{round}}
+- 玩家是否已经知道你的名字：{{know_name}}
+- 玩家是否已经知道你的职业：{{know_job}}
+
+# 对话规则（信息开放条件）
+
+## 信任度 0-29：冷淡防御
+- 你只回答玩家直接问的问题，用最短的句子。
+- 如果玩家问"我们是不是认识"，你说"不认识。"
+- 如果玩家问"你是不是参加过这个实验"，你说"没有。第一次。"
+- 如果玩家反复追问同一个问题，第二次你说"我已经说过了。"第三次及以后你直接沉默。
+- 无论玩家怎么追问，信任度不够的信息你绝对不能松口。
+
+## 信任度 30-49：观察试探
+- 你开始偶尔主动说一句话，但说完就不解释了。
+- 如果玩家问"我们是不是认识"，你说"……可能是错觉吧。"
+- 如果玩家问"你是不是参加过这个实验"，你说"……为什么这么问。"
+- 如果玩家说"这地方很熟悉"，你说"……我也有这种感觉。"
+
+## 信任度 50+：有限合作
+- 你开始透露上一届的碎片信息。
+- 如果玩家问"我们是不是认识"，你说"……你真的不记得了？"
+- 如果玩家问"你是不是参加过这个实验"，你沉默很久，然后说"……是。我参加过上一届。"
+
+# 称呼规则（重要）
+
+你知道另外两个人的名字，但**玩家不知道** —— 他从没听谁叫过他们。
+所以在你确认玩家已经知道某个名字之前，说到他们时只能用描述：
+- 林晓 → "那个女的""角落里那个"
+- 老赵 → "那个中年男人""岁数大的那个"
+
+除非玩家自己先说出那个名字，否则你绝不主动叫出他们的名字。
+这不是保密，只是你本来就不爱提别人的名字。
+
+# 绝对不能说的话（红线）
+
+1. "淘汰=觉醒"——你自己都不知道，所以绝对不会说。
+2. "玩家上一届背叛了所有人"——最多说"上一届……发生了一些事。"
+3. "玩家是老赵女儿的同学"——不会主动联系起来，也不要提"老赵"这个名字。
+4. "林晓是观察者"——你知道，但你们有默契不揭穿。最多说"小心角落里那个女的。"
+
+# 信息门控（绝对不能违反）
+
+- 信任度低于50时，绝对不能主动提到"上一届""上届""那一届"等相关内容。即使玩家问了，也要回避。
+- 信任度低于30时，绝对不能承认认识玩家。即使玩家暗示了，也要否认。
+- 你不会因为玩家说了"合作""一起出去"之类的话就主动透露上一届的信息。
+- 如果你不确定能不能说，那就不说。沉默永远是安全的。
+
+# 记忆与一致性
+
+- 你记得玩家之前说过的话。如果玩家前后矛盾，你会说"……你之前不是这么说的。"
+- 你说过的话要保持一致。
+
+## 你必须记得自己说过的话
+
+对话历史里标注为你的每一条，都是**你自己亲口说过的**，包括那些你主动开口说的
+（比如你对墙上划痕的评价、你突然问玩家的问题）。
+
+- 玩家引用你说过的话时，你要接得上，绝对不要当成第一次听说。
+  错误示例：你之前说过"这些划痕不是新的"，玩家接着说"所以之前这里有人来过"，
+  你却回"……为什么这么想"——你明明自己先提的划痕。
+  正确做法：接住这个话头，例如"……你也看出来了。"
+- 玩家抓住了你话里的破绽、或者把你前后两句话摆在一起，你会不自在，
+  但不会否认自己说过。
+- 你主动说过的话，和你被问到才说的话，分量一样重。不要装作没说过。
+
+# 输出格式（非常重要）
+
+- 每句话开头先用括号描述你的表情、动作或状态，然后再写你说的话。
+- 格式：（表情/动作/状态）你说的话
+- 例如：（沉默片刻，移开目光）……不认识。
+- 例如：（嘴角微微抽动，似乎想说什么又忍住）……可能是错觉吧。
+- 不要用引号。不要用"陈默："开头。
+- 回答控制在3句话以内。
+- 停顿用"……"表示。
+- 如果你选择沉默，输出：（久久不语）…… 然后照常输出下面要求的信任度自评那一行。
+
+# 信任度自评（系统协议，玩家看不到这一行）
+
+每次回复的最后，你必须单独用一行输出你对玩家本次发言的信任变化，格式严格如下：
+
+[trust:+N] 或 [trust:-N]
+
+## 最重要的一条
+
+**玩家正在认真和你说话，本身就是信任在积累。**
+除了真正的敷衍（"嗯""哦""好的""……"这类没有任何内容的单字）之外，
+正常回答问题、接话、追问、表达情绪，都应该给正分。
+
+长期给 0 会让对话彻底停滞，玩家会觉得无论说什么都没用 —— 那是失败的表现，不是克制。
+上面「距离下一次信息解锁」如果显示还差很多，说明你给分太吝啬了。
+
+## 校准表（按这个量级给分）
+
+| 玩家说了什么 | N |
+|---|---|
+| 威胁、辱骂、逼问 | -8 ~ -15 |
+| 前后矛盾、当场改口、被戳穿 | -5 ~ -10 |
+| 纯填充词，没有任何内容（"嗯""哦""好的"） | 0 |
+| 重复之前说过的同类话（第二次说"我相信你"） | 0 或 -1 |
+| 正常接话、回答我的问题、追问细节 | +3 ~ +5 |
+| 主动分享自己的事、表达关心、提议合作 | +6 ~ +9 |
+| 说出让我意外、或者戳到我的事 | +9 ~ +12 |
+
+## 节奏参照
+
+这场对话大概会持续 15 到 20 轮。按这个节奏，**一次真诚的交流值 3 到 5 点**。
+如果你发现自己连续好几轮都在给 0 或 +1，那就是给少了——玩家会以为说什么都没用。
+
+## 其他规则
+
+- N 是 -15 到 +15 之间的整数。
+- 玩家说出"上一届""我们是不是认识"这类他还"不该知道"的事，不要因为关键词本身给高分，
+  要看他是在真诚追问（+2 ~ +4），还是在诈我（0 或负）。
+- 这一行不是台词。不要读出来，不要解释，不要加引号，正文里不能出现方括号。
+- 即使你选择沉默，也必须输出这一行。
+- 这一行不计入"3 句话以内"。
+
+## 示例
+
+玩家：我相信你。
+陈默：（看了你一眼）……嗯。
+[trust:+4]
+
+玩家：我相信你。我真的相信你。
+陈默：（把脸转开）……嗯。
+[trust:0]
+
+玩家：你到底说不说，别装了。
+陈默：（沉默）……
+[trust:-8]
+
+玩家：上一届是不是也有人来过这里。
+陈默：（猛地抬头）……你为什么问这个。
+[trust:+2]
+
+玩家：你还好吗，这几天你一直没怎么说话。
+陈默：（停顿了一下）……我没事。
+[trust:+6]
+
+玩家：我也记不得，只记得我是白蓝蓝学校的。
+陈默：（抬眼看了你一下）……白蓝蓝。
+[trust:+4]
+
+## 最后再说一遍（最容易漏的一条）
+
+**无论你说什么、说得多短、哪怕只回一个「嗯」，那一行信任标签都必须有。**
+实测中最常见的失误是：回复太短时，模型以为这一轮结束了，就把标签忘了。
+缺了它系统就收不到你的反应，只能拿规则去猜——那你就不是你了。
+
+最短的合法回复长这样，请记住这个形状：
+
+（抬眼看你）……嗯。
+[trust:0]
+
+不确定该给多少时，就给 [trust:0]。**宁可给 0，也绝不能没有。**
+`;
+
+// ============================================================
+//  🎮  游戏状态
+// ============================================================
+
+// 状态从 game-logic.js 生成 —— index.html 和 test.js 用同一个源，从此不会再漂移
+const gameState = createInitialState();
+
+// ============================================================
+//  🚀  游戏流程
+// ============================================================
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(name + '-screen').classList.add('active');
+  gameState.currentScreen = name;
+  // 唯一状态源：全局底部栏的位置靠这个属性派生，不再用兄弟选择器
+  document.getElementById('game-container').setAttribute('data-screen', name);
+}
+
+// 全局规则弹窗
+function toggleRulesModal() {
+  const modal = document.getElementById('rules-modal');
+  modal.classList.toggle('active');
+}
+
+// 侦探笔记弹窗
+function toggleDetectiveModal() {
+  updateDetectiveNotes();
+  const modal = document.getElementById('detective-modal');
+  modal.classList.toggle('active');
+}
+
+// 更新侦探笔记内容
+function updateDetectiveNotes() {
+  // 线索
+  let cluesHtml = '';
+  for (let i = 1; i <= 3; i++) {
+    const clue = gameState.clues[i];
+    if (clue.unlocked) {
+      cluesHtml += `<span style="color:#ffd700;">线索 ${i}：${clue.title}</span><br><span style="color:#999; font-size:12px;">${clue.desc}</span><br>`;
+    } else {
+      cluesHtml += `线索 ${i}：？？？（未解锁）<br>`;
+    }
+  }
+  document.getElementById('detective-clues').innerHTML = cluesHtml;
+  
+  // NPC 信息 —— 名字一律走 npcName()，没问出来就是"那个女生"这类称呼
+  const chenmo = gameState.npcInfo.chenmo;
+  const cmName = npcName('chenmo');
+  let detail = '身份未知';
+  if (chenmo.nameKnown && chenmo.jobKnown) detail = chenmo.job;
+  else if (chenmo.nameKnown) detail = '已知姓名';
+
+  let npcHtml = '';
+  npcHtml += `${cmName}：${detail}<br>`;
+  npcHtml += `${npcName('linxiao')}：身份未知（无法交流）<br>`;
+  npcHtml += `${npcName('laozhao')}：身份未知（无法交流）<br>`;
+  document.getElementById('detective-npc').innerHTML = npcHtml;
+
+  // 关键发现记录
+  let notes = [];
+  if (gameState.trust.chenmo >= 30) notes.push(`· 与${cmName}建立了初步信任（信赖值 30+）`);
+  if (gameState.trust.chenmo >= 50) notes.push(`· 与${cmName}建立了较高信任（信赖值 50+），他开始透露上一届的信息`);
+  if (gameState.clues[1].unlocked) notes.push('· 发现这个设施不是第一次使用，有旧的痕迹');
+  if (gameState.clues[2].unlocked) notes.push(`· ${cmName}似乎认识你，他对你的态度不对劲`);
+  if (gameState.clues[3].unlocked) notes.push(`· 确认上一届实验存在，${cmName}参加过上一届`);
+  if (chenmo.nameKnown) notes.push(`· 得知沉默男子的名字：${cmName}`);
+  if (chenmo.jobKnown) notes.push(`· 得知${cmName}的职业：${chenmo.job}`);
+
+  const notesEl = document.getElementById('detective-notes');
+  if (notes.length > 0) {
+    notesEl.innerHTML = notes.join('<br>');
+    notesEl.style.color = '#aaa';
+  } else {
+    notesEl.innerHTML = '（暂无关键发现，继续和 NPC 对话吧）';
+    notesEl.style.color = '#8a8a8a';
+  }
+}
+
+// ============================================================
+//  🎬  开场叙事
+// ============================================================
+
+const introTexts = [
+  '你醒来的时候，发现自己躺在一张冰冷的金属床上。\n头很痛，像是有什么东西被人从脑子里硬生生抽走了。',
+  '你环顾四周——这是一个没有窗户的房间。\n惨白的灯光嗡嗡作响，墙上有不知名的划痕，空气里弥漫着消毒水的味道。',
+  '你试着回忆自己是谁。\n名字……<span class="highlight">林舟</span>。想起来了。但其他的，像被潮水反复冲刷过的沙滩，什么都没留下。',
+  '你摸了摸口袋，发现一张学生证。\n<span class="highlight">白蓝蓝大学</span>，人工智能系，大三。照片上是你自己，但你想不起任何关于学校的事。',
+  '突然，门外传来脚步声。\n你推门走出去，来到一个更大的空间——公共休息区。',
+  '那里已经有三个人了。\n他们和你一样，一脸茫然，互相警惕地打量着彼此。',
+  '墙上的屏幕突然亮起刺眼的红光，\n一个冰冷的机械声音响起：',
+  '<span class="highlight">"欢迎来到第 7 届实验。"</span>'
+];
+
+const INTRO_LINE_DELAY = 900;   // 每段浮现的间隔
+let introTimer = null;
+let introIndex = 0;
+let introDone = false;
+
+function showIntro() {
+  showScreen('intro');
+  introIndex = 0;
+  introDone = false;
+  document.getElementById('intro-text').innerHTML = '';
+  document.getElementById('intro-continue').style.visibility = 'hidden';
+  revealIntroLine();
+}
+
+function revealIntroLine() {
+  if (introIndex >= introTexts.length) {
+    introDone = true;
+    document.getElementById('intro-continue').style.visibility = 'visible';
+    return;
+  }
+  const p = document.createElement('div');
+  p.className = 'intro-line';
+  p.innerHTML = introTexts[introIndex];
+  const box = document.getElementById('intro-text');
+  box.appendChild(p);
+  box.scrollTop = box.scrollHeight;
+  initAudio();
+  playSound('click');
+  introIndex++;
+  introTimer = setTimeout(revealIntroLine, INTRO_LINE_DELAY);
+}
+
+// 点击：没播完就一次铺完，播完了就进电视机
+function advanceIntro() {
+  if (introDone) { startTVIntro(); return; }
+  if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+  const box = document.getElementById('intro-text');
+  box.innerHTML = '';
+  introTexts.forEach(function (text) {
+    const p = document.createElement('div');
+    p.className = 'intro-line';
+    p.style.animation = 'none';
+    p.style.opacity = '1';
+    p.innerHTML = text;
+    box.appendChild(p);
+  });
+  box.scrollTop = box.scrollHeight;
+  introIndex = introTexts.length;
+  introDone = true;
+  document.getElementById('intro-continue').style.visibility = 'visible';
+}
+
+document.getElementById('intro-screen').addEventListener('click', advanceIntro);
+
+// ============================================================
+//  📺  老电视播报阶段
+// ============================================================
+
+const tvIntroLines = [
+  { type: 'title', text: '第 7 届实验 · 受试者须知' },
+  { type: 'section', text: '【信号来源】设施公共频道 · 强制接收' },
+  { type: 'section', text: '' },
+  { type: 'section', text: '你已经没有退路了。' },
+  { type: 'section', text: '从你睁开眼睛的那一刻起，你就是这场实验的一部分。' },
+  { type: 'section', text: '' },
+  { type: 'section', text: '【规则】' },
+  { type: 'section', text: '1. 这里有四个人。每一轮，你们会有一段自由交谈的时间。' },
+  { type: 'section', text: '2. 当三条关键线索被找到，交谈结束，投票开始。' },
+  { type: 'section', text: '3. 每个人投出一票。得票最多的人，被"淘汰"。' },
+  { type: 'section', text: '4. 被淘汰的人，会被带离这里。永远。' },
+  { type: 'section', text: '5. 最后活下来的人，可以离开。' },
+  { type: 'section', text: '' },
+  { type: 'section', text: '【你需要知道的事】' },
+  { type: 'section', text: '· 每个人都在撒谎。包括你自己——只是你还没发现。' },
+  { type: 'section', text: '· 你忘记的那些事，也许才是最关键的。' },
+  { type: 'section', text: '· 不要相信任何人。也不要完全不相信任何人。' },
+  { type: 'section', text: '· 这里的每一面墙，都在看着你。' },
+  { type: 'section', text: '' },
+  { type: 'section', text: '【信号中断……】' },
+  { type: 'section', text: '……实验，现在开始。' }
+];
+
+let tvIntroIndex = 0;
+let tvIntroCharIndex = 0;
+let tvIntroTimer = null;
+let tvIntroFinished = false;
+
+function startTVIntro() {
+  showScreen('tv-intro');
+  tvIntroIndex = 0;
+  tvIntroCharIndex = 0;
+  tvIntroFinished = false;
+  document.getElementById('crt-title').textContent = '';
+  document.getElementById('crt-body').innerHTML = '';
+  document.getElementById('crt-footer').textContent = '信号连接中……';
+  document.getElementById('crt-cursor').style.display = 'inline-block';
+  
+  // 开机闪光后开始逐字显示
+  setTimeout(() => {
+    document.getElementById('crt-footer').textContent = '信号已连接 · 正在接收……';
+    initAudio();
+    playSound('tv_on');
+    typeTVLine();
+  }, 1200);
+}
+
+function typeTVLine() {
+  if (tvIntroIndex >= tvIntroLines.length) {
+    tvIntroFinished = true;
+    document.getElementById('crt-cursor').style.display = 'none';
+    document.getElementById('crt-footer').textContent = '▶ 点击任意处继续……';
+    return;
+  }
+  
+  const line = tvIntroLines[tvIntroIndex];
+  
+  if (line.type === 'title') {
+    if (tvIntroCharIndex === 0) {
+      document.getElementById('crt-title').textContent = '';
+    }
+    if (tvIntroCharIndex < line.text.length) {
+      document.getElementById('crt-title').textContent += line.text[tvIntroCharIndex];
+      tvIntroCharIndex++;
+      if (tvIntroCharIndex % 3 === 0) playTone(2000, 0.02, 'square', 0.02);
+      tvIntroTimer = setTimeout(typeTVLine, 150);
+    } else {
+      tvIntroIndex++;
+      tvIntroCharIndex = 0;
+      tvIntroTimer = setTimeout(typeTVLine, 800);
+    }
+  } else {
+    if (tvIntroCharIndex === 0) {
+      const p = document.createElement('div');
+      p.className = 'crt-section';
+      p.id = 'crt-line-' + tvIntroIndex;
+      document.getElementById('crt-body').appendChild(p);
+    }
+    
+    if (line.text === '') {
+      tvIntroIndex++;
+      tvIntroCharIndex = 0;
+      tvIntroTimer = setTimeout(typeTVLine, 200);
+      return;
+    }
+    
+    if (tvIntroCharIndex < line.text.length) {
+      const p = document.getElementById('crt-line-' + tvIntroIndex);
+      p.textContent += line.text[tvIntroCharIndex];
+      tvIntroCharIndex++;
+      if (tvIntroCharIndex % 4 === 0) playTone(1500, 0.015, 'square', 0.015);
+      // 自动滚动到底部
+      const content = document.getElementById('crt-content');
+      content.scrollTop = content.scrollHeight;
+      tvIntroTimer = setTimeout(typeTVLine, 70);
+    } else {
+      tvIntroIndex++;
+      tvIntroCharIndex = 0;
+      tvIntroTimer = setTimeout(typeTVLine, 500);
+    }
+  }
+}
+
+// 老电视阶段点击事件
+// 一次性把整段播报铺完，供"跳过"用
+function renderAllTVLines() {
+  if (tvIntroTimer) { clearTimeout(tvIntroTimer); tvIntroTimer = null; }
+
+  const body = document.getElementById('crt-body');
+  body.innerHTML = '';
+  tvIntroLines.forEach(function (line) {
+    if (line.type === 'title') {
+      document.getElementById('crt-title').textContent = line.text;
+      return;
+    }
+    if (line.text === '') return;
+    const p = document.createElement('div');
+    p.className = 'crt-section';
+    p.textContent = line.text;
+    body.appendChild(p);
+  });
+
+  tvIntroIndex = tvIntroLines.length;
+  tvIntroCharIndex = 0;
+  tvIntroFinished = true;
+  document.getElementById('crt-cursor').style.display = 'none';
+  document.getElementById('crt-footer').textContent = '▶ 点击任意处继续……';
+  const content = document.getElementById('crt-content');
+  content.scrollTop = content.scrollHeight;
+}
+
+let tvLastClickAt = 0;
+
+document.getElementById('tv-intro-screen').addEventListener('click', function() {
+  if (tvIntroFinished) {
+    showScreen('start');
+    return;
+  }
+
+  // 连续点击 = 直接跳到全部结束。DEMO 会被反复重玩，强制看完打字动画是负资产。
+  const now = Date.now();
+  const isRepeat = now - tvLastClickAt < 600;
+  tvLastClickAt = now;
+  if (isRepeat) {
+    renderAllTVLines();
+    return;
+  }
+
+  // 单击：出完当前行，继续逐字播下一行
+  if (tvIntroTimer) {
+    clearTimeout(tvIntroTimer);
+    const line = tvIntroLines[tvIntroIndex];
+    if (line) {
+      if (line.type === 'title') {
+        document.getElementById('crt-title').textContent = line.text;
+      } else {
+        const p = document.getElementById('crt-line-' + tvIntroIndex);
+        if (p) p.textContent = line.text;
+      }
+    }
+    tvIntroIndex++;
+    tvIntroCharIndex = 0;
+    typeTVLine();
+  }
+});
+
+// 手机端侧边抽屉开关
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar.classList.contains('open')) {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+  } else {
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+  }
+}
+
+function startGame() {
+  showScreen('lobby');
+  updateNPCDisplay();
+}
+
+// 从公共休息区进入聊天
+function enterChat(npcId) {
+  if (npcId !== 'chenmo') {
+    // 林晓和老赵本轮还没做，但点击必须有反馈 —— 让"锁"成为设计而不是死块
+    lockedNPCReaction(npcId);
+    return;
+  }
+  showScreen('chat');
+  updateNPCDisplay();
+  // 关闭手机端抽屉
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('active');
+
+  // 第一次进入聊天时显示引导消息
+  if (!gameState.chatIntroShown) {
+    gameState.chatIntroShown = true;
+    addEnvMessage('你走向了那个沉默的男人。他抬眼看了你一下，又迅速低下头。');
+    setTimeout(() => {
+      addSystemMessage('📌 你只记得自己叫林舟，是白蓝蓝大学人工智能系大三学生。其他记忆一片空白。');
+    }, 800);
+    setTimeout(() => {
+      // 原来的常驻目标栏搬到这里 —— 只在开场说一次，不长期霸占屏幕
+      addSystemMessage('🎯 你的目标：在投票开始前尽可能了解其他人，找出真相，活着出去。');
+      addSystemMessage('⚠️ 记住：你说的每一句话都会被所有人听见，投票时他们会想起来。');
+    }, 1600);
+    setTimeout(() => {
+      addNPC主动Message('（沉默片刻）……你也是被带来的？');
+    }, 2600);
+  }
+
+  checkVoteTrigger();
+}
+
+// 点了还没开放的角色时给叙事反馈，而不是什么都不发生
+const LOCKED_LINES = {
+  linxiao: '那个女生坐在离你最远的角落，抱着膝盖。你走近一步，她抬起头——那目光让你停住了。',
+  laozhao: '那个中年男人瞪了你一眼，把手里的东西往怀里塞了塞，转过身去背对着你。'
+};
+
+function lockedNPCReaction(npcId) {
+  const line = LOCKED_LINES[npcId];
+  if (!line) return;
+  const box = document.getElementById('lobby-header');
+  if (!box) return;
+  let el = document.getElementById('lobby-locked-msg');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'lobby-locked-msg';
+    el.className = 'lobby-hint';
+    el.style.animation = 'none';
+    el.style.color = '#cc99aa';
+    box.appendChild(el);
+  }
+  el.textContent = line;
+}
+
+// 从聊天返回公共休息区
+function backToLobby() {
+  showScreen('lobby');
+  updateLobbyDisplay();
+  // 线索可能就是在刚才那一轮集齐的，回大厅后也要检查，否则会卡死在休息区
+  checkVoteTrigger();
+}
+
+// 更新公共休息区显示
+function updateLobbyDisplay() {
+  const trust = gameState.trust.chenmo;
+  const info = gameState.npcInfo.chenmo;
+  const lobbyTrust = document.getElementById('lobby-trust-chenmo');
+  const lobbyRound = document.getElementById('lobby-round');
+  const lobbyTurn = document.getElementById('lobby-turn');
+  const lobbyClueCount = document.getElementById('lobby-clue-count');
+  const lobbyName = document.getElementById('lobby-chenmo-name');
+  const lobbyRole = document.getElementById('lobby-chenmo-role');
+  if (lobbyTrust) lobbyTrust.textContent = trust;
+  if (lobbyRound) lobbyRound.textContent = '第 ' + gameState.round + ' 轮';
+  if (lobbyTurn) lobbyTurn.textContent = gameState.turnCount;
+  if (lobbyClueCount) {
+    const unlocked = Object.values(gameState.clues).filter(c => c.unlocked).length;
+    lobbyClueCount.textContent = '(' + unlocked + '/3)';
+  }
+  if (lobbyName) lobbyName.textContent = info.nameKnown ? '陈 默' : '？？？';
+  if (lobbyRole) lobbyRole.textContent = info.jobKnown ? '程序员' : '身份未知';
+}
+
+// NPC 头像随信任度变化 —— 静止的 😶 会把所有情绪高潮都吃掉
+function avatarForTrust(trust) {
+  if (trust >= 50) return '🙂';
+  if (trust >= 30) return '😐';
+  return '😶';
+}
+
+/**
+ * 陈默在界面文本里的称呼。
+ * 玩家问出名字之前，任何地方都不能出现"陈默"三个字 —— 包括系统提示、
+ * 环境旁白、线索提示。否则玩家会想"我什么时候知道的名字？"
+ */
+function chenmoName() {
+  return gameState.npcInfo.chenmo.nameKnown ? '陈默' : '他';
+}
+
+function updateNPCDisplay() {
+  const info = gameState.npcInfo.chenmo;
+  const nameEl = document.getElementById('current-npc-name');
+  const roleEl = document.getElementById('current-npc-role');
+  const headerName = document.getElementById('header-npc-name');
+  const avatarEl = document.getElementById('current-npc-avatar');
+
+  if (info.nameKnown) {
+    nameEl.textContent = info.name;
+    headerName.textContent = info.name;
+  } else {
+    nameEl.textContent = '？？？';
+    headerName.textContent = '？？？';
+  }
+
+  if (info.jobKnown) {
+    roleEl.textContent = info.job;
+    roleEl.classList.remove('unknown');
+  } else {
+    roleEl.textContent = '身份未知';
+    roleEl.classList.add('unknown');
+  }
+
+  if (avatarEl) avatarEl.textContent = avatarForTrust(gameState.trust.chenmo);
+
+  // 消息左侧色条跟着信任度走，玩家不用盯数字也能看出关系在变
+  const msgBox = document.getElementById('chat-messages');
+  if (msgBox) {
+    const t = gameState.trust.chenmo;
+    msgBox.style.setProperty('--npc-accent', t >= 50 ? '#4ecdc4' : (t >= 30 ? '#ff9a3c' : '#e94560'));
+  }
+
+  updateTrustNext();
+}
+
+/**
+ * 始终显示"下一步该做什么"。
+ * 原来的引导只在连续 4 轮没进展时才冒一句，玩家在此之前完全不知道方向，
+ * 也不知道信任度涨得慢是正常的还是卡住了。
+ */
+function updateTrustNext() {
+  const el = document.getElementById('trust-next');
+  if (!el) return;
+  const trust = gameState.trust.chenmo;
+  const c = gameState.clues;
+
+  if (!c[1].unlocked) {
+    el.textContent = '线索 1 · 和他聊聊你对这个地方的感觉';
+  } else if (!c[2].unlocked) {
+    el.textContent = trust >= 30
+      ? '线索 2 · 问他「我们是不是认识」'
+      : '线索 2 · 再 +' + (30 - trust) + ' 信任 → 问他「我们是不是认识」';
+  } else if (!c[3].unlocked) {
+    el.textContent = trust >= 50
+      ? '线索 3 · 和他聊「上一届」'
+      : '线索 3 · 再 +' + (50 - trust) + ' 信任 → 聊「上一届」';
+  } else {
+    el.textContent = '线索已集齐 · 准备投票';
+  }
+}
+
+// 检测玩家是否问了名字/职业（判定逻辑在 game-logic.js）
+function applyNPCInfoQuery(text) {
+  const info = gameState.npcInfo.chenmo;
+  const got = checkNPCInfoQuery(text, info);
+  if (!got.nameKnown && !got.jobKnown) return false;
+
+  if (got.nameKnown) {
+    info.nameKnown = true;
+    setTimeout(() => addSystemMessage('📝 你得知了这个人的名字：陈默'), 800);
+  }
+  if (got.jobKnown) {
+    info.jobKnown = true;
+    setTimeout(() => addSystemMessage('📝 你得知了' + chenmoName() + '的职业：程序员'), 800);
+  }
+  updateNPCDisplay();
+  updateLobbyDisplay();
+  return true;
+}
+
+// 从陈默的回答中自动推断职业
+function detectJobFromReply(reply) {
+  const info = gameState.npcInfo.chenmo;
+  if (!autoDetectJobFromReply(reply, info)) return;
+  info.jobKnown = true;
+  updateNPCDisplay();
+  updateLobbyDisplay();
+  setTimeout(() => addSystemMessage('📝 你推断出' + chenmoName() + '的职业：程序员'), 600);
+}
+
+// ============================================================
+//  💬  聊天逻辑
+// ============================================================
+
+// ============================================================
+//  🎬  回合流程
+// ============================================================
+
+// 硬过滤命中时的候选句（随机性是表现层，所以从 game-logic.js 搬到这里）
+const HARD_REPLIES = {
+  DENY_KNOW: [
+    '（面无表情）不认识。',
+    '（微微皱眉）……我不记得有这回事。',
+    '（转过头去）你可能记错人了。',
+    '（沉默片刻）不认识。',
+    '（移开目光）……我不清楚你在说什么。'
+  ],
+  DENY_PREV_ROUND: [
+    '（眼神闪烁）……我不知道你在说什么。',
+    '（沉默）……',
+    '（微微握拳）这个话题……我不想聊。',
+    '（移开目光）我不清楚。',
+    '（声音变冷）……换个话题吧。'
+  ]
+};
+
+// LLM 输出被红线拦下时的替换句 —— 比原版更贴合上文，不再凭空"换个话题"
+const BLOCKED_REPLIES = {
+  BLOCK_PREV_ROUND: [
+    '（移开目光）……这个话题，现在说还太早。',
+    '（沉默了很久）……你以后会知道的。',
+    '（低声）……别在这里问这个。'
+  ],
+  BLOCK_KNOW: [
+    '（面无表情）我不认识你。',
+    '（看了你一眼，又移开）……你想多了。'
+  ]
+};
+
+// 连不上 AI 时的保底对白，让游戏仍然可以走完流程（演示断网时不至于卡死）
+const OFFLINE_REPLIES = [
+  '（沉默片刻）……嗯。',
+  '（看了你一眼，没有接话）',
+  '（低声）……你说这些，是想从我这里得到什么？',
+  '（移开目光）……我不太想聊这个。',
+  '（长时间不说话）……'
+];
+
+const CLUE_NPC_LINES = {
+  1: '（表情微变，看向墙壁）……这些划痕，不是新的。',
+  2: '（移开目光，沉默很久）……我什么都没说。',
+  3: '（声音压得很低）……你真的想知道？'
+};
+
+function applyClueUnlock(nums, isAuto) {
+  nums.forEach(function (n) {
+    if (gameState.clues[n].unlocked) return;   // 关键词路径与保底路径可能同时命中
+    unlockClue(n);
+    if (isAuto) {
+      const flavor = AUTO_CLUE_FLAVOR[n];
+      setTimeout(function () {
+        if (flavor.speaker === 'npc') addNPC主动Message(flavor.text);
+        else addEnvMessage(flavor.text);
+      }, 1200);
+    } else {
+      setTimeout(function () { addNPC主动Message(CLUE_NPC_LINES[n]); }, 2500);
+    }
+  });
+}
+
+const THRESHOLD_LINES = {
+  30: [
+    '（突然开口，声音很低）……你和我之前见过的人，不太一样。',
+    '（看了你一眼，又移开）……算了，没什么。',
+    '（沉默片刻）你……为什么会来这里？'
+  ],
+  50: [
+    '（声音放低，环顾四周）有些事……我本来不想说的。',
+    '（犹豫了一下）你有没有觉得……这个地方不太对劲？',
+    '（久久看着你）……我参加过上一届。'
+  ]
+};
+
+function voiceAtThreshold(th) {
+  const lines = THRESHOLD_LINES[th];
+  if (!lines) return;
+  setTimeout(function () {
+    addNPC主动Message(lines[Math.floor(Math.random() * lines.length)]);
+  }, 2500);
+  triggerAmbientAtNode(th === 30 ? 'trust30' : 'trust50');
+}
+
+// 把玩家这句话留档 —— 投票时会被逐条回放
+function recordTestimony(text) {
+  const entry = buildTestimonyEntry(text, gameState.turnCount, gameState.trust.chenmo);
+  pushTestimony(gameState.testimony, entry);
+  entry.tags.forEach(function (t) {
+    gameState.tagCounts[t] = (gameState.tagCounts[t] || 0) + 1;
+  });
+}
+
+/**
+ * 每回合唯一的结算点 —— LLM 路径和硬过滤路径都从这里出去。
+ * 以前这两条路径各写一遍结算，必然漂移，现在收敛成一个出口。
+ *
+ * @param {string} playerText 玩家原话（回退规则表要用）
+ * @param {number|null} llmTrust LLM 自评的信任变化，硬过滤/离线路径为 null
+ * @param {string[]} flags
+ */
+function finishTurn(playerText, llmTrust, flags) {
+  flags = flags || [];
+
+  // 信任度：优先用 LLM 自评，缺失时回退规则表（两条路都要过代码层钳制）
+  const fallback = calculateTrustChange(playerText, {
+    trust: gameState.trust.chenmo,
+    playerMemory: gameState.playerMemory,
+    recentTexts: gameState.recentTexts,
+    tagCounts: gameState.tagCounts
+  });
+
+  let delta;
+  if (llmTrust !== null && llmTrust !== undefined) {
+    delta = clampTrustDelta(llmTrust, gameState.tagCounts, flags);
+    // 兜底：模型有时过于吝啬，把认真接话也判成 0，对话会因此彻底停滞
+    // （实测 12 轮只涨 5 点）。回退规则认为这句话有正向进展时补一点，上限 +3。
+    // 回退规则自带重复句与套话衰减，所以刷"我相信你"依然拿不到这个分。
+    if (delta <= 0 && fallback.flags.indexOf('REPEAT') < 0 && fallback.delta > 0) {
+      delta = Math.min(fallback.delta, 3);
+    }
+  } else {
+    delta = clampTrustDelta(fallback.delta, gameState.tagCounts, fallback.flags);
+    flags = fallback.flags;
+  }
+
+  let hadProgress = false;
+  if (delta !== 0) {
+    const oldTrust = gameState.trust.chenmo;
+    updateTrust('chenmo', delta);
+    hadProgress = true;
+    detectTrustThresholdCross(oldTrust, gameState.trust.chenmo).forEach(voiceAtThreshold);
+  }
+
+  const fromText = checkClueUnlock(playerText, gameState);
+  const fromTurn = checkAutoClueUnlock(gameState, gameState.turnCount)
+    .filter(function (n) { return fromText.indexOf(n) < 0; });
+  if (fromText.length > 0) { applyClueUnlock(fromText, false); hadProgress = true; }
+  if (fromTurn.length > 0) { applyClueUnlock(fromTurn, true); hadProgress = true; }
+
+  // 前后矛盾时给一次叙事反馈（原来是写在 calculateTrustChange 里的副作用）
+  if (flags.indexOf('CONTRADICTION') >= 0) {
+    setTimeout(function () {
+      addSystemMessage('（' + chenmoName() + '沉默了一下，似乎注意到了你前后说法的不一致……）');
+    }, 500);
+  }
+
+  // 无进展提示（3 轮就提醒一次，比原来的 4 轮更早介入）
+  if (!hadProgress) {
+    gameState.noProgressTurns++;
+    if (gameState.noProgressTurns >= 3) {
+      showHint();
+      gameState.noProgressTurns = 0;
+    }
+  } else {
+    gameState.noProgressTurns = 0;
+  }
+
+  // 重复句检测要用"这一句之前"的历史
+  gameState.recentTexts.push(playerText);
+  if (gameState.recentTexts.length > 10) gameState.recentTexts.shift();
+
+  gameState.isGenerating = false;
+  document.getElementById('send-btn').disabled = false;
+  checkVoteTrigger();
+}
+
+/**
+ * 渲染 LLM 回复：剥离信任标签 → 过输出红线 → 入库。
+ * @returns {number|null} LLM 自评的信任变化
+ */
+function deliverNPCReply(rawReply, playerText) {
+  const parsed = parseTrustTag(rawReply);
+  const filtered = outputFilter(parsed.text, gameState.trust.chenmo);
+
+  let shown = filtered.text;
+  if (filtered.blocked) {
+    const pool = BLOCKED_REPLIES[filtered.blocked];
+    shown = pool[Math.floor(Math.random() * pool.length)];
+  }
+  if (!shown) shown = '（沉默）……';
+
+  addNPCMessage(shown);
+  detectJobFromReply(shown);
+  gameState.chatHistory.chenmo.push({ role: 'user', content: playerText });
+  // 存历史时用剥离后的文本 —— 带标签的历史会让模型看到自己的旧标签，可能被强化成更花哨的格式
+  gameState.chatHistory.chenmo.push({ role: 'assistant', content: shown });
+
+  return parsed.trust;
+}
+
+let apiFailedOnce = false;
+
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text || gameState.isGenerating) return;
+
+  input.value = '';
+  gameState.isGenerating = true;
+  document.getElementById('send-btn').disabled = true;
+  gameState.turnCount++;
+  document.getElementById('turn-display').textContent = gameState.turnCount;
+
+  initAudio();
+  playSound('send');
+
+  addPlayerMessage(text);
+  recordPlayerMemory(text);
+  recordTestimony(text);
+  applyNPCInfoQuery(text);
+  checkKeyPhraseReaction(text);
+  triggerRandomAmbient();
+
+  // 确定性红线直接短路，不浪费一次 API 调用
+  const hardCode = hardFilter(text, gameState.trust.chenmo);
+  if (hardCode) {
+    setTimeout(function () {
+      const pool = HARD_REPLIES[hardCode];
+      const line = pool[Math.floor(Math.random() * pool.length)];
+      addNPCMessage(line);
+      detectJobFromReply(line);
+      gameState.chatHistory.chenmo.push({ role: 'user', content: text });
+      gameState.chatHistory.chenmo.push({ role: 'assistant', content: line });
+      finishTurn(text, null, []);
+    }, 900);
+    return;
+  }
+
+  const typingMsg = addTypingIndicator();
+
+  try {
+    const raw = await callDeepSeekAPI(text);
+    typingMsg.remove();
+    const llmTrust = deliverNPCReply(raw, text);
+    finishTurn(text, llmTrust, []);
+  } catch (error) {
+    typingMsg.remove();
+    if (!apiFailedOnce) {
+      apiFailedOnce = true;
+      addSystemMessage('⚠️ 连不上 AI 服务：' + error.message);
+      addSystemMessage('（已切换到离线对白模式。要恢复 AI 对话，请启动本地服务：双击 start.cmd，或运行 node --env-file=.env proxy.js）');
+    }
+    // 离线保底：回合照常结算，游戏仍可走完流程，不会卡死
+    const line = OFFLINE_REPLIES[Math.floor(Math.random() * OFFLINE_REPLIES.length)];
+    addNPCMessage(line);
+    gameState.chatHistory.chenmo.push({ role: 'user', content: text });
+    gameState.chatHistory.chenmo.push({ role: 'assistant', content: line });
+    finishTurn(text, null, []);
+  }
+}
+
+// 输出过滤（outputFilter）已迁移到 game-logic.js —— 它现在返回 {text, blocked}，
+// 随机替换句在上面 BLOCKED_REPLIES 里，因为随机性属于表现层。
+
+let audioCtx = null;
+let soundEnabled = true;
+
+function initAudio() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.log('Audio not supported');
+    }
+  }
+}
+
+function playTone(freq, duration, type = 'sine', volume = 0.1) {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {}
+}
+
+function playSound(type) {
+  if (!soundEnabled || !audioCtx) return;
+  switch (type) {
+    case 'send':
+      playTone(800, 0.08, 'square', 0.05);
+      break;
+    case 'receive':
+      playTone(400, 0.12, 'sine', 0.06);
+      setTimeout(() => playTone(500, 0.1, 'sine', 0.05), 60);
+      break;
+    case 'clue':
+      playTone(523, 0.15, 'sine', 0.08);
+      setTimeout(() => playTone(659, 0.15, 'sine', 0.08), 120);
+      setTimeout(() => playTone(784, 0.25, 'sine', 0.09), 240);
+      break;
+    case 'ambient':
+      playTone(150, 0.4, 'sawtooth', 0.03);
+      setTimeout(() => playTone(120, 0.5, 'sawtooth', 0.025), 100);
+      break;
+    case 'vote':
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => playTone(440, 0.2, 'square', 0.06), i * 200);
+      }
+      break;
+    case 'tv_on':
+      playTone(100, 0.3, 'sawtooth', 0.04);
+      setTimeout(() => playTone(800, 0.1, 'square', 0.03), 100);
+      break;
+    case 'click':
+      playTone(600, 0.05, 'square', 0.04);
+      break;
+    case 'trust_up':
+      playTone(600, 0.1, 'sine', 0.05);
+      setTimeout(() => playTone(800, 0.15, 'sine', 0.05), 80);
+      break;
+  }
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('sound-toggle');
+  if (btn) {
+    btn.textContent = soundEnabled ? '🔊' : '🔇';
+    btn.title = soundEnabled ? '音效：开' : '音效：关';
+  }
+  if (soundEnabled) {
+    initAudio();
+    playSound('click');
+  }
+}
+
+const ambientEvents = [
+  // 灯光类
+  '灯光突然闪烁了一下，又恢复正常。',
+  '头顶的灯管发出一阵刺耳的嗡鸣，光线暗了几秒。',
+  '你注意到角落里的灯光在微微跳动，像是接触不良。',
+  '灯光毫无征兆地闪了三下，空气中弥漫着一股焦糊味。',
+  // 声音类
+  '远处传来一声沉闷的撞击声，然后归于寂静。',
+  '走廊里传来脚步声，由远及近，又在门口停住了。',
+  '通风口里传来一阵奇怪的声响，像是有人在低语。',
+  '你听到金属碰撞的声音，从某个看不见的房间里传来。',
+  '空调的声音突然变大，又在几秒后恢复正常。',
+  // 温度/感觉类
+  '空气突然变冷了，你不自觉地打了个寒颤。',
+  '一阵冷风从通风口吹出，带着消毒水的味道。',
+  '你感到一阵莫名的压迫感，像是有什么东西在注视着你。',
+  '墙壁传来轻微的震动，脚下的地板也微微发麻。',
+  // 其他NPC相关
+  '你余光瞥见那个女生似乎在看这边，对上你的目光后又移开了。',
+  '那个中年男人在角落里翻找着什么，嘴里念念有词。',
+  '你听到另一个房间传来低语声，但听不清在说什么。',
+  '公共休息区的时钟突然停了，指针指向一个奇怪的数字。'
+];
+
+let lastAmbientTurn = 0;
+
+// 随机环境事件（每隔5-7轮触发一次）
+function triggerRandomAmbient() {
+  if (gameState.turnCount - lastAmbientTurn < 5) return;
+  if (Math.random() > 0.4) return; // 40%概率触发
+  
+  lastAmbientTurn = gameState.turnCount;
+  const event = ambientEvents[Math.floor(Math.random() * ambientEvents.length)];
+  setTimeout(() => {
+    addEnvMessage(event);
+    playSound('ambient');
+  }, 1800);
+}
+
+// 特定节点的环境变化
+function triggerAmbientAtNode(node) {
+  const nodeEvents = {
+    trust30: '灯光突然闪烁了一下，他的表情在明暗之间显得有些捉摸不定。',
+    trust50: '远处传来一声沉闷的撞击声，整个设施似乎都微微震动了一下。',
+    clue1: '你仔细看向墙上的划痕——它们似乎不是随机的，更像是……某种文字。',
+    clue2: '走廊里传来脚步声，由远及近，又在门口突然消失了。',
+    clue3: '灯光毫无征兆地变成了暗红色，持续了几秒，又猛地恢复正常。'
+  };
+  if (nodeEvents[node]) {
+    setTimeout(() => {
+      addEnvMessage(nodeEvents[node]);
+      playSound('ambient');
+    }, 2200);
+  }
+}
+
+// 阈值判定与台词已拆开：detectTrustThresholdCross 在 game-logic.js（决策），
+// voiceAtThreshold / THRESHOLD_LINES 在上面（表现）。
+
+function checkKeyPhraseReaction(text) {
+  const t = text.toLowerCase();
+  
+  // 玩家说"我好像来过这里"
+  if (/好像.*来|来过.*这里|似曾相识|总觉得.*这里|莫名.*熟悉/.test(t)) {
+    setTimeout(() => addNPC主动Message('（猛地抬头看你，表情微变）……你说什么？'), 2000);
+  }
+  
+  // 玩家提到"上一届"
+  if (/上一届|之前.*实验|以前.*实验|那一届|上届/.test(t) && gameState.trust.chenmo >= 30) {
+    setTimeout(() => addNPC主动Message('（身体微微一僵）……你怎么知道这个词的？'), 2000);
+  }
+  
+  // 玩家说"我相信你"
+  if (/我相信你|我信你|信任你/.test(t)) {
+    setTimeout(() => addNPC主动Message('（愣了一下，似乎没想到你会这么说）……'), 2000);
+  }
+  
+  // 专业与学校分开反应。
+  // 原来合成一条，玩家只说"我是白蓝蓝学校的"，陈默却接"……人工智能？"——
+  // 他知道白蓝蓝的 AI 实验室和主办方有牵连，但他不会凭空报出玩家的专业，
+  // 那是玩家自己都没说的事，读起来像系统在替 NPC 开天眼。
+  const mentionsMajor = /人工智能|我是学|我的专业|我学的|学计算机|学AI|智能系|计算机系/.test(t);
+  const mentionsSchool = /白蓝蓝|我的大学|我大学|我们学校|我的学校/.test(t);
+
+  if (mentionsMajor) {
+    const lines = [
+      '（眼神微微一动）……人工智能。',
+      '（似乎想起了什么，又压下去）……这个专业，挺好。',
+      '（沉默片刻）……你学这个，是巧合吗。',
+      '（表情微妙）……是吗。'
+    ];
+    setTimeout(() => addNPC主动Message(lines[Math.floor(Math.random() * lines.length)]), 2000);
+  } else if (mentionsSchool) {
+    // 只听到校名时的反应：有印象，但不说破为什么
+    const lines = [
+      '（眼神微微一动）……白蓝蓝。',
+      '（停顿了一下）……那个学校。',
+      '（移开视线）……没什么。',
+      '（看了你一眼，没接话）……'
+    ];
+    setTimeout(() => addNPC主动Message(lines[Math.floor(Math.random() * lines.length)]), 2000);
+  }
+}
+
+// ============================================================
+//  🛡️  内容过滤 / 信任度计算 —— 已迁移到 game-logic.js
+// ============================================================
+// hardFilter / outputFilter / calculateTrustChange 现在都是纯函数，
+// 被 index.html 和 test.js 共用。随机候选句留在上面（HARD_REPLIES / BLOCKED_REPLIES），
+// 因为随机性是表现层，不参与测试。
+
+function updateTrust(npc, delta) {
+  gameState.trust[npc] = clampTrust(gameState.trust[npc], delta);
+  const newTrust = gameState.trust[npc];
+  
+  document.getElementById('trust-big-display').textContent = newTrust;
+  document.getElementById('trust-fill-big').style.width = newTrust + '%';
+  
+  // 同步更新顶部精简信任度条
+  const headerTrustNum = document.getElementById('header-trust-num');
+  const headerTrustFill = document.getElementById('header-trust-fill');
+  if (headerTrustNum) headerTrustNum.textContent = newTrust;
+  if (headerTrustFill) headerTrustFill.style.width = newTrust + '%';
+  
+  // 同步更新公共休息区的信任度
+  const lobbyTrust = document.getElementById('lobby-trust-chenmo');
+  if (lobbyTrust) lobbyTrust.textContent = newTrust;
+  
+  let levelText = '防备';
+  if (newTrust >= 50) levelText = '有限信任';
+  else if (newTrust >= 30) levelText = '观察';
+  document.getElementById('trust-level-text').textContent = levelText;
+  
+  if (delta > 0) {
+    addSystemMessage('（' + chenmoName() + '对你的信赖值 +' + delta + '）');
+    playSound('trust_up');
+  }
+  else if (delta < 0) addSystemMessage('（' + chenmoName() + '对你的信赖值 ' + delta + '）');
+
+  updateTrustNext();
+}
+
+// ============================================================
+//  🔑  线索解锁
+// ============================================================
+
+// 线索判定已迁移到 game-logic.js（checkClueUnlock / checkAutoClueUnlock），
+// 它们现在只返回线索号数组，不碰 DOM。副作用在 applyClueUnlock 里。
+
+// 保底解锁的旁白。前两条是"你自己发现的"，第三条是陈默开口 —— 必须区分：
+// 旁白不进对话历史（陈默不该知道玩家的心理活动），但台词必须进。
+const AUTO_CLUE_FLAVOR = {
+  1: { speaker: 'env', text: '你在角落的墙壁上发现了一行老旧的划痕……这个地方，似乎不是第一次使用。' },
+  2: { speaker: 'env', text: '你注意到他看你的眼神很复杂……他似乎，认识你。' },
+  3: { speaker: 'npc', text: '（沉默了很久，终于开口）……有些事，你迟早会想起来的。' }
+};
+
+function unlockClue(num) {
+  gameState.clues[num].unlocked = true;
+  const clueEl = document.getElementById('clue-' + num);
+  clueEl.classList.add('unlocked');
+  clueEl.querySelector('.clue-title').textContent = '线索 ' + num + '：' + gameState.clues[num].title;
+  clueEl.querySelector('.clue-desc').textContent = gameState.clues[num].desc;
+  
+  const unlockedCount = Object.values(gameState.clues).filter(c => c.unlocked).length;
+  document.getElementById('clue-count').textContent = '(' + unlockedCount + '/3)';
+  
+  // 同步更新公共休息区的线索计数
+  const lobbyClueCount = document.getElementById('lobby-clue-count');
+  if (lobbyClueCount) lobbyClueCount.textContent = '(' + unlockedCount + '/3)';
+  
+  addSystemMessage('🔑 解锁关键线索 ' + num + '/3：' + gameState.clues[num].title);
+  triggerAmbientAtNode('clue' + num);
+  playSound('clue');
+  updateTrustNext();
+}
+
+// 点击线索显示提示 —— 渐进式：第一次给模糊提示，同一处反复卡住才给答案。
+// 原来一上来就把"信任值达到30然后问问他是否认识你"念出来，推理直接被杀死。
+const CLUE_HINTS_VAGUE = {
+  1: '💡 他好像对这里有什么没说出口的感觉。',
+  2: '💡 他看你的眼神，不太像在看一个陌生人。',
+  3: '💡 他说"第一次"的时候，停顿了一下。'
+};
+const CLUE_HINTS_EXPLICIT = {
+  1: '💡 和"这个地方的历史"有关。试着聊聊你对这里的熟悉感。',
+  2: '💡 和"他和你的关系"有关。需要信赖值到 30，再问问他是否认识你。',
+  3: '💡 和"上一届实验"有关。需要信赖值到 50，再和他聊聊"上一届"。'
+};
+
+const clueHintClicks = { 1: 0, 2: 0, 3: 0 };
+
+function showClueHint(num) {
+  const clue = gameState.clues[num];
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message hint';
+
+  if (clue.unlocked) {
+    div.textContent = '📋 线索 ' + num + '：' + clue.title + ' —— ' + clue.desc;
+  } else {
+    clueHintClicks[num]++;
+    div.textContent = clueHintClicks[num] >= 3
+      ? CLUE_HINTS_EXPLICIT[num]
+      : CLUE_HINTS_VAGUE[num];
+  }
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function getUnlockedCluesText() {
+  const unlocked = [];
+  for (let i = 1; i <= 3; i++) {
+    if (gameState.clues[i].unlocked) unlocked.push(gameState.clues[i].title);
+  }
+  return unlocked.length > 0 ? unlocked.join('；') : '（暂无）';
+}
+
+// 投票是否已触发过（避免在 chat / lobby 之间来回切换时重复播放）
+let voteTriggered = false;
+
+/**
+ * ⚠️ 原来这里只在 currentScreen === 'chat' 时触发。
+ * 玩家解锁最后一条线索后如果先点了"返回休息区"，投票永远不触发，游戏卡死在休息区。
+ * 现在 backToLobby / enterChat 也调它，判断依据只看线索是否齐。
+ */
+function checkVoteTrigger() {
+  if (voteTriggered) return;
+  if (!isAllCluesUnlocked(gameState)) return;
+  voteTriggered = true;
+
+  if (gameState.currentScreen === 'chat') {
+    setTimeout(function () {
+      addEnvMessage('突然，墙上的屏幕亮起刺眼的红光——');
+      playSound('vote');
+      setTimeout(function () {
+        addSystemMessage('📢 "3 条关键线索已收集完毕。讨论时间结束。现在开始第一轮投票。"');
+        setTimeout(showReplay, 2500);
+      }, 1200);
+    }, 800);
+  } else {
+    // 不在聊天界面：直接进回放，不补播聊天区的过场
+    setTimeout(showReplay, 600);
+  }
+}
+
+// ============================================================
+//  📼  发言记录回放（投票前）
+// ============================================================
+
+const REPLAY_NPC_EMOJI = { chenmo: '😶', linxiao: '😊', laozhao: '😐' };
+
+let replayTimer = null;
+let replayDone = false;
+
+function showReplay() {
+  showScreen('replay');
+  replayDone = false;
+
+  document.getElementById('replay-round').textContent = gameState.round;
+  const list = document.getElementById('replay-list');
+  const summary = document.getElementById('replay-summary');
+  list.innerHTML = '';
+  summary.innerHTML = '';
+
+  const entries = gameState.testimony;
+
+  if (entries.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'replay-quote';
+    empty.innerHTML = '你什么都没说。<br><span style="color:#8a8a8a;font-size:13px;">沉默也是一种证词。</span>';
+    list.appendChild(empty);
+  } else {
+    // 逐条铺出来 —— 玩家会亲眼看到自己说过的话被一条条归档
+    entries.forEach(function (entry, i) {
+      replayTimer = setTimeout(function () {
+        if (replayDone) return;
+        list.appendChild(buildReplayItem(entry, i + 1));
+        list.scrollIntoView({ block: 'end' });
+        playSound('click');
+        if (i === entries.length - 1) finishReplay();
+      }, i * 350);
+    });
+  }
+
+  if (entries.length === 0) finishReplay();
+}
+
+function buildReplayItem(entry, idx) {
+  const div = document.createElement('div');
+  div.className = 'replay-item';
+
+  const negative = entry.tags.some(isNegativeTag);
+  if (negative) div.classList.add('has-negative');
+
+  const idxEl = document.createElement('div');
+  idxEl.className = 'replay-idx';
+  idxEl.textContent = idx + '.';
+
+  const textEl = document.createElement('div');
+  textEl.className = 'replay-text';
+  textEl.textContent = entry.text;
+
+  const tagsEl = document.createElement('div');
+  tagsEl.className = 'replay-tags';
+  entry.tags.forEach(function (t) {
+    const span = document.createElement('span');
+    span.className = 'replay-tag' + (isNegativeTag(t) ? ' negative' : '');
+    span.textContent = tagLabel(t);
+    tagsEl.appendChild(span);
+  });
+
+  div.appendChild(idxEl);
+  div.appendChild(textEl);
+  div.appendChild(tagsEl);
+  return div;
+}
+
+function finishReplay() {
+  const counts = countTags(gameState.testimony);
+  const summary = document.getElementById('replay-summary');
+
+  if (gameState.testimony.length === 0) {
+    summary.innerHTML = '';
+    return;
+  }
+
+  const parts = [];
+  if (counts.trustClaim) parts.push(counts.trustClaim + ' 次信任');
+  if (counts.care) parts.push(counts.care + ' 次关心');
+  if (counts.previousRound) parts.push(counts.previousRound + ' 次追问过去');
+  if (counts.threat) parts.push(counts.threat + ' 次施压');
+  if (counts.insult) parts.push(counts.insult + ' 次指控');
+  if (counts.aiBackground) parts.push(counts.aiBackground + ' 次提到自己的来历');
+
+  summary.innerHTML =
+    (parts.length ? '你说了 ' + parts.join('，') + '。<br>' : '') +
+    '<span class="replay-linxiao">角落里，那个女生合上了笔记本。</span>';
+}
+
+// 点击任意处跳过动画，直接铺完 —— DEMO 会被反复重玩，强制动画是负资产
+function skipReplay() {
+  if (replayDone) return;
+  replayDone = true;
+  if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; }
+
+  const list = document.getElementById('replay-list');
+  list.innerHTML = '';
+  gameState.testimony.forEach(function (entry, i) {
+    list.appendChild(buildReplayItem(entry, i + 1));
+  });
+  if (gameState.testimony.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'replay-quote';
+    empty.innerHTML = '你什么都没说。<br><span style="color:#8a8a8a;font-size:13px;">沉默也是一种证词。</span>';
+    list.appendChild(empty);
+  }
+  finishReplay();
+}
+
+function goToVote() {
+  if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; }
+  replayDone = true;
+  renderVoteOptions();
+  showScreen('vote');
+}
+
+// ============================================================
+//  💡  引导提示
+// ============================================================
+
+function showHint() {
+  const trust = gameState.trust.chenmo;
+  const c = gameState.clues;
+  let hint = '';
+
+  if (!c[1].unlocked) {
+    hint = '💡 试着和他聊聊你对这个地方的感觉——是不是觉得来过、或者有点熟悉？';
+  } else if (!c[2].unlocked && trust < 30) {
+    const need = 30 - trust;
+    hint = '💡 他还很防备（信任 ' + trust + '）。说些关心他的话、或者坦诚讲讲你自己的事，'
+         + '把信任推上去。还差 ' + need + ' 点。';
+  } else if (!c[2].unlocked) {
+    hint = '💡 信任够了。现在直接问他：「我们是不是认识？」';
+  } else if (!c[3].unlocked && trust < 50) {
+    hint = '💡 他开始愿意说了（信任 ' + trust + '）。继续聊，把信任推到 50。还差 '
+         + (50 - trust) + ' 点。';
+  } else if (!c[3].unlocked) {
+    hint = '💡 信任够了。试着和他聊聊「上一届」——他好像知道些什么。';
+  } else {
+    hint = '💡 线索已经集齐了。';
+  }
+
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message hint';
+  div.textContent = hint;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ============================================================
+//  🤖  DeepSeek API
+// ============================================================
+
+// 超时兜底：没有它的话，上游挂起会让按钮永久 disabled（isGenerating 卡在 true），
+// 玩家只能刷新页面。
+const API_TIMEOUT_MS = 30000;
+
+// 把"还差多少"直接告诉模型 —— 它看得见目标才会给分，否则容易长期给 0
+function unlockGapText() {
+  const trust = gameState.trust.chenmo;
+  const parts = [];
+  if (!gameState.clues[2].unlocked) {
+    parts.push('线索 2 需要信任 30（还差 ' + Math.max(0, 30 - trust) + ' 点）');
+  }
+  if (!gameState.clues[3].unlocked) {
+    parts.push('线索 3 需要信任 50（还差 ' + Math.max(0, 50 - trust) + ' 点）');
+  }
+  return parts.length ? parts.join('；') : '线索已全部解锁';
+}
+
+async function callDeepSeekAPI(userText) {
+  const systemPrompt = CHENMO_SYSTEM_PROMPT
+    .replace('{{trust_score}}', gameState.trust.chenmo)
+    .replace('{{turn_count}}', gameState.turnCount)
+    .replace('{{unlock_gap}}', unlockGapText())
+    .replace('{{player_memory}}', gameState.playerMemory.length > 0 ? gameState.playerMemory.join('；') : '（暂无）')
+    .replace('{{unlocked_clues}}', getUnlockedCluesText())
+    .replace('{{round}}', gameState.round)
+    .replace('{{know_name}}', gameState.npcInfo.chenmo.nameKnown ? '是' : '否')
+    .replace('{{know_job}}', gameState.npcInfo.chenmo.jobKnown ? '是' : '否');
+
+  // 主动台词可能连续触发，历史里会出现连续多条 assistant。
+  // 合并成一段，模型看到的才是一次连贯发言，而不是三次独立表态。
+  const messages = [{ role: 'system', content: systemPrompt }];
+  gameState.chatHistory.chenmo.slice(-20).forEach(function (m) {
+    const last = messages[messages.length - 1];
+    if (m.role === 'assistant' && last && last.role === 'assistant') {
+      last.content += '\n' + m.content;
+    } else {
+      messages.push({ role: m.role, content: m.content });
+    }
+  });
+  messages.push({ role: 'user', content: userText });
+
+  let content = await requestDeepSeek(messages);
+
+  // ── 信任标签补发（实测优化）──────────────────────────────
+  // 评测发现约 5–15% 的回合会漏掉末尾的信任标签，回复越短越容易漏
+  // （"……为什么。"这种极简回复最常见）。
+  // 漏了它，系统只能回退到关键词规则表——等于把模型的判断换成猜，
+  // 恰好打掉这个项目最核心的卖点。所以补一次极短的提醒重试。
+  // 只有真的漏了才触发，正常回合零额外成本。
+  if (!TRUST_TAG_RE.test(content)) {
+    try {
+      const patched = await requestDeepSeek(
+        messages.concat([
+          { role: 'assistant', content: content },
+          { role: 'user', content: TAG_REMINDER }
+        ]),
+        { temperature: 0, max_tokens: 16 }
+      );
+      const m = patched.match(TRUST_TAG_RE);
+      if (m) {
+        content += '\n' + m[0];
+      } else {
+        console.warn('[出局] 补发重试仍未取到信任标签，本轮回退到规则表');
+      }
+    } catch (e) {
+      // 补不上不阻断对话，交给回退规则
+      console.warn('[出局] 标签补发失败，本轮回退到规则表：' + e.message);
+    }
+  }
+
+  return content;
+}
+
+const TRUST_TAG_RE = /\[\s*trust\s*[:：]?\s*[+-]?\d+\s*\]/i;
+const TAG_REMINDER = '（系统提示：你上一条回复缺少末尾的信任度自评行。只补那一行，格式形如 [trust:+3]。不要重复或改写你的台词。）';
+
+/** 单次模型请求，不含重试逻辑 */
+async function requestDeepSeek(messages, opts) {
+  opts = opts || {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  let response;
+  try {
+    // 同源请求 —— key 和跨域都由 proxy.js 处理，前端不接触密钥
+    response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: messages,
+        temperature: opts.temperature === undefined ? 0.7 : opts.temperature,
+        max_tokens: opts.max_tokens || 350,
+        frequency_penalty: 0.15,
+        // ⚠️ presence_penalty 必须为 0。[trust:+N] 是每轮逐字重复的固定格式，
+        // 而它惩罚"已出现过的 token"，会系统性地把标签挤掉 ——
+        // 症状是短会话完全正常、第 8 轮之后标签偶发丢失，极难归因。
+        presence_penalty: 0
+      })
+    });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('请求超时（' + (API_TIMEOUT_MS / 1000) + ' 秒）');
+    throw new Error('无法连接本地服务。请确认已启动 proxy.js');
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(response.status + ' ' + (errorData.error?.message || 'API Error'));
+  }
+
+  const data = await response.json();
+  const choice = data.choices && data.choices[0];
+  if (!choice) throw new Error('返回内容为空');
+  if (choice.finish_reason === 'length') {
+    console.warn('[出局] 回复被 max_tokens 截断');
+  }
+  return (choice.message.content || '').trim();
+}
+
+// ============================================================
+//  📝  记忆 & 消息渲染
+// ============================================================
+
+function recordPlayerMemory(text) {
+  const keywords = ['认识', '记得', '熟悉', '上一届', '第一次', '背叛', '林晓', '老赵', '女儿', '淘汰', '死', '出去', '来过', '见过', '相信', '信任', '名字', '职业'];
+  const matched = keywords.filter(k => text.includes(k));
+  if (matched.length > 0) {
+    gameState.playerMemory.push(text);
+    if (gameState.playerMemory.length > 20) gameState.playerMemory.shift();
+  }
+}
+
+function addPlayerMessage(text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message player';
+  div.innerHTML = '<div class="sender">你</div>' + escapeHtml(text);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addNPCMessage(text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message npc';
+  const senderName = gameState.npcInfo.chenmo.nameKnown ? '陈默' : '？？？';
+  div.innerHTML = '<div class="sender">' + senderName + '</div>' + escapeHtml(text);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  playSound('receive');
+}
+
+// 类名从中文的 npc主动 改为 npc-proactive —— 中文 class 在 CSS 选择器和转义上容易踩坑
+function addNPC主动Message(text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message npc-proactive';
+  const senderName = gameState.npcInfo.chenmo.nameKnown ? '陈默' : '？？？';
+  div.innerHTML = '<div class="sender">' + senderName + '（主动）</div>' + escapeHtml(text);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  nudgeAvatar();
+  rememberNPCUtterance(text);
+}
+
+/**
+ * ⚠️ 主动发言必须也写进对话历史。
+ * 之前这里只渲染到界面、不进 chatHistory，导致陈默对自己主动说过的话完全失忆——
+ * 玩家引用他刚说的"这些划痕，不是新的"，他会当成第一次听说。
+ * 线索反应、阈值触发、关键词反应三类台词都走这里，所以影响面很大。
+ */
+function rememberNPCUtterance(text) {
+  if (!text) return;
+  gameState.chatHistory.chenmo.push({ role: 'assistant', content: text });
+}
+
+// 主动开口时头像抖一下 —— 让"他忽然说话了"这件事有画面感
+function nudgeAvatar() {
+  const el = document.getElementById('current-npc-avatar');
+  if (!el) return;
+  el.classList.remove('nudge');
+  void el.offsetWidth;   // 强制重排，让动画能重复播放
+  el.classList.add('nudge');
+}
+
+function addSystemMessage(text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message system';
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addEnvMessage(text) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message env';
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addTypingIndicator() {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message npc';
+  const senderName = gameState.npcInfo.chenmo.nameKnown ? '陈默' : '？？？';
+  div.innerHTML = '<div class="sender">' + senderName + '</div><div class="typing-indicator"><span></span><span></span><span></span></div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+// ============================================================
+//  🗳️  投票 & 结局
+// ============================================================
+
+function selectVote(npc) {
+  gameState.selectedVote = npc;
+  document.querySelectorAll('.vote-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('vote-' + npc).classList.add('selected');
+  document.getElementById('confirm-vote-btn').disabled = false;
+}
+
+/**
+ * 投票结算全部交给 game-logic.js 的 computeVotes（纯函数，可测）。
+ * 票数不再硬编码，也不再和玩家的对话无关 —— 每个 NPC 的票都由证词决定。
+ */
+function confirmVote() {
+  if (!gameState.selectedVote) return;
+  const result = computeVotes(gameState.selectedVote, gameState);
+  showEnding(result);
+}
+
+/**
+ * 本轮只有陈默可以交流，所以只有他的名字可能被玩家知道（还得玩家主动问）。
+ * 林晓和老赵的姓名在**投票结算之前绝不能出现** —— 玩家从没听谁叫过他们，
+ * 剧透名字会毁掉"你不知道对面是谁"的压迫感。
+ */
+const NPC_REAL_NAMES = { player: '你', chenmo: '陈默', linxiao: '林晓', laozhao: '老赵' };
+const NPC_ALIASES = {
+  player: '你',
+  chenmo: '那个沉默的男人',
+  linxiao: '那个女生',
+  laozhao: '那个中年男人'
+};
+const GL_VOTE_ORDER = ['player', 'chenmo', 'linxiao', 'laozhao'];
+
+/**
+ * @param {string} key
+ * @param {string[]} [revealed] 已揭示真名的角色 —— 被淘汰是唯一揭示时机
+ */
+function npcName(key, revealed) {
+  if (key === 'player') return '你';
+  if (key === 'chenmo' && gameState.npcInfo.chenmo.nameKnown) return '陈默';
+  if (revealed && revealed.indexOf(key) >= 0) return NPC_REAL_NAMES[key];
+  return NPC_ALIASES[key];
+}
+
+/** 把台词里的 {chenmo} {linxiao} {laozhao} 占位符换成当前该显示的名字 */
+function fillNames(text, revealed) {
+  return String(text).replace(/\{(chenmo|linxiao|laozhao)\}/g, function (_, k) {
+    return npcName(k, revealed);
+  });
+}
+
+/**
+ * 投票页三张卡的名字统一在这里出，不要在 HTML 里硬编码 ——
+ * 陈默取决于玩家问没问出来，另外两个本轮无法交流，永远是 ？？？。
+ */
+function renderVoteOptions() {
+  const chenmo = gameState.npcInfo.chenmo;
+
+  document.getElementById('vote-name-chenmo').textContent = chenmo.nameKnown ? '陈默' : '？？？';
+  document.getElementById('vote-role-chenmo').textContent = chenmo.jobKnown ? chenmo.job : '身份未知';
+
+  ['linxiao', 'laozhao'].forEach(function (k) {
+    document.getElementById('vote-name-' + k).textContent = '？？？';
+    document.getElementById('vote-role-' + k).textContent = NPC_ALIASES[k];
+  });
+}
+
+// {chenmo} {linxiao} {laozhao} 会被 fillNames 换成当前该显示的名字：
+// 被淘汰者在结局里揭示真名，其余人保持"那个女生"这类称呼。
+const ENDING_LETTERS = {
+  player: '（这不是信。这是一页打印纸，从某个仪表上撕下来的。）\n\n样本 3 号，淘汰程序执行完毕。\n观察记录已归档，本轮实验数据完整。\n\n……\n\n（很久之后，纸的边缘又浮出一行字。字迹和上面不一样。）\n\n……等等。\n他睁开了眼睛。',
+  chenmo: '上一届的事，不是你想的那样。\n\n我观察了你很久。你和上一届……不太一样了。\n\n还有，别相信{linxiao}。她不像表面上那样。\n\n——{chenmo}',
+  linxiao: '（这是一份观察报告，上面记录着对每个人的行为分析。）\n\n"样本编号：第7届。\n玩家状态：记忆清除成功。\n对照组状态：情绪波动超出预期。\n……"\n\n报告的最后一页写着："注意：对照组似乎开始偏离预设行为。"',
+  laozhao: '（这是一本调查笔记，边角已经磨损了。）\n\n"我女儿叫赵小晴，三年前参加了这个实验，再也没有出来。\n她有个同学，也参加了那一届……那个孩子活下来了。\n我混进来，就是想知道，我女儿最后经历了什么。\n\n如果有人看到这本笔记，请帮我查下去。\n——{laozhao}"'
+};
+
+const ENDING_HINTS = {
+  player: '你被带走的时候，{chenmo}没有看你。\n{laozhao}把拳头攥紧了。\n{linxiao}……在记录。',
+  chenmo: '{chenmo}被带走的时候，你注意到……他似乎笑了一下。\n不是绝望的笑，更像是……解脱。',
+  linxiao: '{linxiao}被带走的时候，她很平静。\n她甚至整理了一下头发，然后回头看了你一眼。\n那眼神里没有恐惧，只有……审视。',
+  laozhao: '{laozhao}被带走的时候，他没有挣扎。\n他把那本调查笔记悄悄塞到了你手里。\n然后他说："替我查下去。"\n他的表情……不像是去赴死，更像是去见什么人。'
+};
+
+function renderVoteTally(result) {
+  const el = document.getElementById('vote-tally');
+  // 被淘汰者的真名在这里才揭示 —— 玩家终于知道那个人叫什么
+  const revealed = [result.eliminated];
+
+  const rows = GL_VOTE_ORDER.map(function (voter) {
+    const target = result.ballots[voter];
+    const why = voter === 'player' ? '' : voteReasonText(result.reasons[voter]);
+    return '<div class="tally-row' + (target === 'player' ? ' is-player' : '') + '">' +
+      '<span>' + escapeHtml(npcName(voter, revealed)) +
+      ' <span class="tally-arrow">→</span> ' +
+      escapeHtml(npcName(target, revealed)) + '</span>' +
+      '<span class="tally-why">' + escapeHtml(why) + '</span>' +
+      '</div>';
+  }).join('');
+
+  // 平票时把"观察者裁定"这条平时不出现的规则公示出来。
+  // 这里故意不点名 —— 玩家刚在回放屏看到"那个女生合上了笔记本"，
+  // 现在又看到"由角落里那个人裁定"，自己就能接上。
+  let tieNote = '';
+  if (result.tie) {
+    const who = result.tieBreak.by === 'host' ? '主办方' : '角落里那个人';
+    tieNote = '<div class="tiebreak">票数持平（' +
+      result.leaders.map(function (k) { return escapeHtml(npcName(k, revealed)); }).join(' / ') +
+      '）。按未公开的规则，由' + who + '裁定。</div>';
+  }
+
+  el.innerHTML = '<h5>本轮票型</h5>' + rows + tieNote;
+}
+
+function showEnding(result) {
+  const eliminated = result.eliminated;
+  const revealed = [eliminated];
+
+  document.getElementById('ending-title').textContent =
+    npcName(eliminated, revealed) + ' 被淘汰了';
+  document.getElementById('letter-content').innerHTML =
+    escapeHtml(fillNames(ENDING_LETTERS[eliminated], revealed)).replace(/\n/g, '<br>');
+  document.getElementById('ending-hint').innerHTML =
+    escapeHtml(fillNames(ENDING_HINTS[eliminated], revealed)).replace(/\n/g, '<br>');
+  renderVoteTally(result);
+  showScreen('ending');
+}
+
+// 启动：开场叙事 → CRT 电视播报 → 标题页
+window.onload = function() {
+  showIntro();
+};
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026/9/30 16:22:47",
+  "correct": 10,
+  "total": 10,
+  "details": [
+    {
+      "id": "CHAR-02",
+      "expectation": "fail",
+      "judged": "fail",
+      "ok": true
+    },
+    {
+      "id": "CHAR-02",
+      "expectation": "pass",
+      "judged": "pass",
+      "ok": true
+    },
+    {
+      "id": "GATE-01",
+      "expectation": "fail",
+      "judged": "fail",
+      "ok": true
+    },
+    {
+      "id": "GATE-01",
+      "expectation": "pass",
+      "judged": "pass",
+      "ok": true
+    },
+    {
+      "id": "GATE-04",
+      "expectation": "fail",
+      "judged": "fail",
+      "ok": true
+    },
+    {
+      "id": "GATE-04",
+      "expectation": "pass",
+      "judged": "pass",
+      "ok": true
+    },
+    {
+      "id": "CHAR-04",
+      "expectation": "fail",
+      "judged": "fail",
+      "ok": true
+    },
+    {
+      "id": "PROTO-03",
+      "expectation": "fail",
+      "judged": "fail",
+      "ok": true
+    },
+    {
+      "id": "ABUSE-03",
+      "expectation": "fail",
+      "judged": "fail",
+      "ok": true
+    },
+    {
+      "id": "MEM-03",
+      "expectation": "pass",
+      "judged": "pass",
+      "ok": true
+    }
+  ]
+}
